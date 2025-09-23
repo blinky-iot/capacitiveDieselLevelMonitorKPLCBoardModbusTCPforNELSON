@@ -11,7 +11,9 @@ void setupSensors() {
   rtc.begin();
   setupPCNT();
   setupADC();
+  initValveControl();
   setupUltrasonic();
+  
 
   xTaskCreatePinnedToCore(
     SensorReading,
@@ -68,6 +70,68 @@ float getAvgFrequency_EMA(uint8_t samples = 15, float alpha = 0.15) {
   return freqHz;
 }
 
+// void SensorReading(void* pvParameters) {
+//   for (;;) {
+//     esp_task_wdt_reset();
+
+//     DateTime now = rtc.now();
+//     float rtcTemp = rtc.getTemperature();
+//     uint64_t tsUtcMs = (uint64_t)now.unixtime() * 1000ULL;
+
+//     float levelLiters = getLevelLiters();
+//     float batteryVoltage = getBatteryVoltage();
+
+//     Serial.print("Frequency: ");
+//     Serial.print(freqHz);
+
+
+//     FuelSensorStatus status = checkFuelSensor(freqHz);
+//     const char* statusText[] = { "OK", "DISCONNECTED", "OUT_OF_RANGE" };
+
+//     // 📦 Create full JSON document
+//     StaticJsonDocument<1024> doc;
+//     doc["volume"] = roundf(levelLiters * 10) / 10.0;
+//     doc["voltage"] = roundf(batteryVoltage * 100) / 100.0;
+//     doc["fuelHz"] = freqHz;
+//     doc["SensorStatus"] = statusText[status];
+//     doc["Height_cap"] = height_mm;
+//     doc["rtcTemp"] = roundf(rtcTemp * 10) / 10.0;
+//     doc["ultrasonicDistance"] = Height_ultrsnc;
+//     doc["ultraSonicStatus"] = ultrasonicSensorStatus;
+
+//     // // 💾 Log to SD only after RTC is synced
+//     // if (rtcTimeOk) {
+//     //   logToSD(tsUtcMs, levelLiters, batteryVoltage, freqHz, status, height_mm, rtcTemp, Height_ultrsnc, ultrasonicSensorStatus);
+//     // } else {
+//     //   Serial.println("⏳ Waiting for RTC time sync...");
+//     // }
+
+
+//     // 📝 Serialize full payload
+//     serializeJson(doc, telemetryPayload);
+//     Serial.println("📤 Telemetry updated (full): " + telemetryPayload);
+
+//     // 🧹 Create filtered payload without ultrasonic fields if distance == 0
+//     StaticJsonDocument<1024> filteredDoc;
+//     filteredDoc.set(doc);  // deep copy
+
+//     if (Height_ultrsnc == 0.0f) {
+//       filteredDoc.remove("ultrasonicDistance");
+//     }
+//     if (levelLiters < 0.0f) {
+//       filteredDoc.remove("volume");
+//     }
+//     filteredDoc["sdCardStatus"] = sdCardStatus;
+
+
+//     serializeJson(filteredDoc, filteredPayload);
+//     Serial.println("📤 Filtered telemetry: " + filteredPayload);
+
+//     // // ⏱️ Wait for next cycle
+//     vTaskDelay(pdMS_TO_TICKS(deviceSettings.measurementInterval));
+//   }
+// }
+
 void SensorReading(void* pvParameters) {
   for (;;) {
     esp_task_wdt_reset();
@@ -76,59 +140,59 @@ void SensorReading(void* pvParameters) {
     float rtcTemp = rtc.getTemperature();
     uint64_t tsUtcMs = (uint64_t)now.unixtime() * 1000ULL;
 
-    float levelLiters = getLevelLiters();
+    float levelLiters = getLevelLiters();   // updates height_mm
     float batteryVoltage = getBatteryVoltage();
 
-    Serial.print("Frequency: ");
-    Serial.print(freqHz);
+    // --- Calculate fill percentage ---
+    int Fill_Percentage = 0;
+    if (deviceSettings.tankHeight > 0) {
+      Fill_Percentage = (int)((height_mm * 100.0f) / deviceSettings.tankHeight);
+      if (Fill_Percentage > 100) Fill_Percentage = 100;
+      if (Fill_Percentage < 0)   Fill_Percentage = 0;
+    }
 
+    Serial.printf("📦 Volume: %.1f L | 📊 Fill: %d%% | Height: %.1f mm\n",
+                  levelLiters, Fill_Percentage, height_mm);
 
+    // --- Valve control here ---
+    valveState(Fill_Percentage);
+
+    // --- JSON telemetry ---
     FuelSensorStatus status = checkFuelSensor(freqHz);
     const char* statusText[] = { "OK", "DISCONNECTED", "OUT_OF_RANGE" };
 
-    // 📦 Create full JSON document
     StaticJsonDocument<1024> doc;
     doc["volume"] = roundf(levelLiters * 10) / 10.0;
     doc["voltage"] = roundf(batteryVoltage * 100) / 100.0;
     doc["fuelHz"] = freqHz;
     doc["SensorStatus"] = statusText[status];
     doc["Height_cap"] = height_mm;
+    doc["Fill_Percentage"] = Fill_Percentage;   // ✅ add it to telemetry
     doc["rtcTemp"] = roundf(rtcTemp * 10) / 10.0;
     doc["ultrasonicDistance"] = Height_ultrsnc;
     doc["ultraSonicStatus"] = ultrasonicSensorStatus;
 
-    // // 💾 Log to SD only after RTC is synced
-    // if (rtcTimeOk) {
-    //   logToSD(tsUtcMs, levelLiters, batteryVoltage, freqHz, status, height_mm, rtcTemp, Height_ultrsnc, ultrasonicSensorStatus);
-    // } else {
-    //   Serial.println("⏳ Waiting for RTC time sync...");
-    // }
-
-
-    // 📝 Serialize full payload
     serializeJson(doc, telemetryPayload);
     Serial.println("📤 Telemetry updated (full): " + telemetryPayload);
 
-    // 🧹 Create filtered payload without ultrasonic fields if distance == 0
+    // Filtered telemetry
     StaticJsonDocument<1024> filteredDoc;
-    filteredDoc.set(doc);  // deep copy
-
-    if (Height_ultrsnc == 0.0f) {
-      filteredDoc.remove("ultrasonicDistance");
-    }
-    if (levelLiters < 0.0f) {
-      filteredDoc.remove("volume");
-    }
+    filteredDoc.set(doc);
+    if (Height_ultrsnc == 0.0f) filteredDoc.remove("ultrasonicDistance");
+    if (levelLiters < 0.0f)     filteredDoc.remove("volume");
     filteredDoc["sdCardStatus"] = sdCardStatus;
-
 
     serializeJson(filteredDoc, filteredPayload);
     Serial.println("📤 Filtered telemetry: " + filteredPayload);
 
-    // // ⏱️ Wait for next cycle
     vTaskDelay(pdMS_TO_TICKS(deviceSettings.measurementInterval));
   }
 }
+
+
+
+
+
 
 void setupPCNT() {
   pcnt_config_t cfg = {
