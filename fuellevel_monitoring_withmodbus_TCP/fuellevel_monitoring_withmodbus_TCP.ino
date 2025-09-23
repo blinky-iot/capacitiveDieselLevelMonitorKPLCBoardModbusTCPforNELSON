@@ -24,26 +24,67 @@ void setup() {
   initSettings();
   initCalibration();
   setupSensors();
+
   rtcTimeOk = loadRtcTimeOk();  // load saved value
   if (rtcTimeOk) Serial.println("RTC is SET");
   else Serial.println("RTC is NOT SET");
 
   for (int i = 0; i < 10; i++) {
-    freqHz = getAvgFrequency_EMA(15, 0.15);  // Or test exponential average
+    freqHz = getAvgFrequency_EMA(15, 0.15);
   }
 
-
 #ifdef USE_WIFI
-  while (!connectWiFi())
-    ;
-  mqttConnect();
+  // 1️⃣ Step 1 → DHCP WiFi for MQTT + attributes
+  while (!connectWiFiDHCP());   // keep trying until connected
+  if (mqttConnect()) {
+    Serial.println("✅ Attributes sync done");
+  }
+
+  // 2️⃣ Step 2 → Restart WiFi with static IP + Modbus
+  WiFi.disconnect(true);
+  delay(1000);
+  while (!connectWiFiStatic()); // keep trying until connected
 #endif
 
 #ifdef USE_GSM
   manageGSMConnectivity();
 #endif
+
   hourlyResetSetup();
 }
+
+// void setup() {
+//   Serial.begin(115200);
+//   initWatchdog();
+//   LCDsetup();
+//   StatusDisplay();
+//   initSD();
+//   xTaskCreatePinnedToCore(wifiConnection, "wifi_Connection", 10000, NULL, 0, &BackgroundProcessor, 0);
+//   //displayTask();
+//   initGpsHandler();
+//   initSettings();
+//   initCalibration();
+//   setupSensors();
+//   rtcTimeOk = loadRtcTimeOk();  // load saved value
+//   if (rtcTimeOk) Serial.println("RTC is SET");
+//   else Serial.println("RTC is NOT SET");
+
+//   for (int i = 0; i < 10; i++) {
+//     freqHz = getAvgFrequency_EMA(15, 0.15);  // Or test exponential average
+//   }
+
+
+// #ifdef USE_WIFI
+//   while (!connectWiFi())
+//     ;
+//   mqttConnect();
+// #endif
+
+// #ifdef USE_GSM
+//   manageGSMConnectivity();
+// #endif
+//   hourlyResetSetup();
+// }
 unsigned long tGsm;
 unsigned long lastTelemetryTime;
 bool startupTelemetry = true;

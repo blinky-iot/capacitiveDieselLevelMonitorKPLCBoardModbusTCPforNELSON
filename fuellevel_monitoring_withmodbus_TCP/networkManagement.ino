@@ -80,8 +80,6 @@ void powerDownModem() {
   digitalWrite(PIN_SIM_PWR, LOW);
   Serial.println("-----------------------GSM POWER OFF-----------------");
 }
-
-
 // --- GSM MQTT Maintenance Function
 bool manageGSMConnectivity() {
   SerialMon.println("🔄 Starting GSM Connectivity Check...");
@@ -163,7 +161,6 @@ bool manageGSMConnectivity() {
 
   mqttClient.loop();  // Always call loop to maintain MQTT connection
 }
-
 // --- MQTT Connection with Retry
 bool ensureMQTT() {
   const int maxRetries = 5;
@@ -191,39 +188,127 @@ bool ensureMQTT() {
   return false;
 }
 
+
+
+
+
+// 1️⃣ First WiFi connection (DHCP) → ensures MQTT works
+bool connectWiFiDHCP() {
+  WiFi.begin(ssid, password);
+  networkConnected = false;
+  Serial.print("Connecting to WiFi");
+
+  unsigned long startAttemptTime = millis();
+  const unsigned long timeout = 30000;
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+    if (millis() - startAttemptTime > timeout) {
+      Serial.println("\n❌ WiFi connection timed out");
+      return false;
+    }
+  }
+
+  networkConnected = true;
+  Serial.println("\n✅ WiFi connected (DHCP)");
+  Serial.print("📡 IP address: ");
+  Serial.println(WiFi.localIP());
+  return true;
+}
+
+// 2️⃣ Second WiFi connection (Static + Modbus)
+bool connectWiFiStatic() {
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("⚠️ Failed to configure static IP");
+  }
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi (Static)");
+
+  unsigned long startAttemptTime = millis();
+  const unsigned long timeout = 30000;
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+    if (millis() - startAttemptTime > timeout) {
+      Serial.println("\n❌ WiFi connection timed out");
+      return false;
+    }
+  }
+
+  Serial.println("\n✅ WiFi connected (Static)");
+  Serial.print("📡 IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // Start Modbus TCP server
+  mb.server();
+  for (int i = 0; i < REG_COUNT; i++) {
+    mb.addHreg(REG_BASE + i);
+    mb.Hreg(REG_BASE + i, 0);
+  }
+
+  return true;
+}
+
+
+
+
+
+String interpretMqttState(int state) {
+  switch (state) {
+    case -4: return "Connection Timeout";
+    case -3: return "Connection Lost";
+    case -2: return "Connect Failed";
+    case -1: return "Disconnected";
+    case 0: return "Connected";
+    case 1: return "Bad Protocol";
+    case 2: return "Bad Client ID";
+    case 3: return "Unavailable";
+    case 4: return "Bad Credentials";
+    case 5: return "Unauthorized";
+    default: return "Unknown Error";
+  }
+}
+
+
+
+
+/*
 // --- WiFi Connection with 30s Timeout
-// bool connectWiFi() {
-//   WiFi.begin(ssid, password);
-//   networkConnected = false;
-//   Serial.print("Connecting to WiFi");
+bool connectWiFi() {
+  WiFi.begin(ssid, password);
+  networkConnected = false;
+  Serial.print("Connecting to WiFi");
 
-//   unsigned long startAttemptTime = millis();
-//   const unsigned long timeout = 30000;  // 30 seconds
+  unsigned long startAttemptTime = millis();
+  const unsigned long timeout = 30000;  // 30 seconds
 
-//   while (WiFi.status() != WL_CONNECTED) {
-//     Serial.print(".");
-//     delay(500);
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
 
-//     if (millis() - startAttemptTime > timeout) {
-//       Serial.println("\n❌ WiFi connection timed out");
-//       return false;
-//     }
-//   }
+    if (millis() - startAttemptTime > timeout) {
+      Serial.println("\n❌ WiFi connection timed out");
+      return false;
+    }
+  }
 
-//   networkConnected = true;
-//   Serial.println("\n✅ WiFi connected");
-//   Serial.print("📡 IP address: ");
-//   Serial.println(WiFi.localIP());
-//   return true;
-//   // Start Modbus TCP server
-//   mb.server();
+  networkConnected = true;
+  Serial.println("\n✅ WiFi connected");
+  Serial.print("📡 IP address: ");
+  Serial.println(WiFi.localIP());
+  return true;
+  // // Start Modbus TCP server
+  // mb.server();
 
-//   // Add 10 Holding Registers
-//   for (int i = 0; i < REG_COUNT; i++) {
-//     mb.addHreg(REG_BASE + i);
-//     mb.Hreg(REG_BASE + i, i);  // Optional: preset values 0–9
-//   }
-// }
+  // // Add 10 Holding Registers
+  // for (int i = 0; i < REG_COUNT; i++) {
+  //   mb.addHreg(REG_BASE + i);
+  //   mb.Hreg(REG_BASE + i, i);  // Optional: preset values 0–9
+  // }
+}
 
 bool connectWiFi() {
   if (!WiFi.config(local_IP, gateway, subnet)) {
@@ -261,21 +346,8 @@ bool connectWiFi() {
 
   return true;
 }
-String interpretMqttState(int state) {
-  switch (state) {
-    case -4: return "Connection Timeout";
-    case -3: return "Connection Lost";
-    case -2: return "Connect Failed";
-    case -1: return "Disconnected";
-    case 0: return "Connected";
-    case 1: return "Bad Protocol";
-    case 2: return "Bad Client ID";
-    case 3: return "Unavailable";
-    case 4: return "Bad Credentials";
-    case 5: return "Unauthorized";
-    default: return "Unknown Error";
-  }
-}
+*/
+
 
 /*
   ------------------------------------------------------------------------------

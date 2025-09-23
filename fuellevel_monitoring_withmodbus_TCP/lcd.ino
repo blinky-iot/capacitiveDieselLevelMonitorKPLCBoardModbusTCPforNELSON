@@ -64,12 +64,12 @@ void StatusDisplay() {
 
   // --- Line 4: Valve Status ---
   lcd.setCursor(12, 0);
-  lcd.print("V:     ");  // Clear old text
-  lcd.setCursor(15, 0);
+  lcd.print("VLV: ");  // Clear old text
+  lcd.setCursor(17, 0);
   if (valveOpen) {
-    lcd.print("OPEN");
+    lcd.print("OFF");
   } else {
-    lcd.print("CLOSE");
+    lcd.print("ON");
   }
 }
 
