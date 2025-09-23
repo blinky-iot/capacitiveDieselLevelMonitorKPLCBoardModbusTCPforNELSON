@@ -15,26 +15,254 @@ void Display(String Message1, String Message2) {
   lcd.print(String(Message2));
 }
 
+// void StatusDisplay() {
+//   //lcd.clear();
+//   lcd.init();
+//   lcd.setCursor(0, 0);
+//   lcd.print("Lev: ");
+
+//   lcd.setCursor(0, 1);
+//   lcd.print("Vol: ");
+//   //DistanceDisplay(DisplayDistance, Volume);
+
+//   //clearLCDLine(2);
+//   lcd.setCursor(0, 2);
+//   lcd.print("Sts:           ");  // Clear old text
+//   lcd.setCursor(8, 2);
+
+//   if (WiFi.status() == WL_CONNECTED) {
+//     lcd.print("Connected   ");
+//   } else {
+//     lcd.print("Disconnected");
+//   }
+// }
+
 void StatusDisplay() {
-  //lcd.clear();
+  lcd.init();
+
+  // --- Line 1: Level ---
   lcd.setCursor(0, 0);
-  lcd.print("Level: ");
+  lcd.print("Lev:");
 
+  // --- Line 2: Volume ---
   lcd.setCursor(0, 1);
-  lcd.print("Volume: ");
-  //DistanceDisplay(DisplayDistance, Volume);
+  lcd.print("Vol:");
 
-  //clearLCDLine(2);
+  // --- Line 3: WiFi Status ---
   lcd.setCursor(0, 2);
-  lcd.print("Status:           ");  // Clear old text
-  lcd.setCursor(8, 2);
-
+  lcd.print("Net:         ");  // Clear old text
+  lcd.setCursor(5, 2);
   if (WiFi.status() == WL_CONNECTED) {
     lcd.print("Connected   ");
   } else {
     lcd.print("Disconnected");
   }
+
+  lcd.setCursor(0, 3);
+  lcd.print("IP: ");
+
+
+  // --- Line 4: Valve Status ---
+  lcd.setCursor(12, 0);
+  lcd.print("V:     ");  // Clear old text
+  lcd.setCursor(15, 0);
+  if (valveOpen) {
+    lcd.print("OPEN");
+  } else {
+    lcd.print("CLOSE");
+  }
 }
+
+void DistanceDisplay(float height_mm, int volume_liters) {
+  if (height_mm >= 0) {
+    // Update Level value only (right-aligned from column 7)
+    lcd.setCursor(5, 0);
+    lcd.print("       ");  // Clear previous value (8 spaces)
+    lcd.setCursor(5, 0);
+    lcd.print(height_mm / 1000.0, 2);  // e.g., 1.23
+    lcd.print(" M");
+
+    // Update Volume value (right-aligned from column 8)
+    lcd.setCursor(5, 1);
+    lcd.print("       ");  // Clear previous value
+    lcd.setCursor(5, 1);
+    lcd.print(volume_liters);
+    lcd.print(" L");
+
+    //Serial.printf("lcd height_mm: %.2f mm, volume_liters: %d L\n", height_mm, volume_liters);
+  } else {
+    lcd.setCursor(4, 0);
+    lcd.print("Invalid");
+
+    lcd.setCursor(4, 1);
+    lcd.print("Reading");
+  }
+}
+
+MsgStructure Conv(String Message) {
+
+  MsgStructure Conv1;
+
+  char* msg = new char[Message.length() + 1];
+  strcpy(msg, Message.c_str());
+  int i = 0;
+
+  for (i = 0; i <= 19; i++) {
+    Conv1.str1 += msg[i];
+  }
+
+  if (Message.length() > 20) {
+    for (int j = i; j <= Message.length() - 1; j++) {
+      Conv1.str2 += msg[j];
+    }
+  }
+
+  return Conv1;
+}
+
+void clearLCDLine(int line) {
+
+  for (int n = 0; n < 20; n++) {  // 20 indicates symbols in line. For 2x16 LCD write - 16
+    lcd.setCursor(n, line);
+    lcd.print(" ");
+  }
+  lcd.setCursor(0, line);  // set cursor in the beginning of deleted line
+}
+
+void clearLCDLine(int line, int startCell) {
+
+  for (int n = startCell; n < 20; n++) {  // 20 indicates symbols in line. For 2x16 LCD write - 16
+    lcd.setCursor(n, line);
+    lcd.print(" ");
+  }
+  lcd.setCursor(0, line);  // set cursor in the beginning of deleted line
+}
+
+/*
+this function stores
+REG_BASE + 0 → Volume (L, rounded integer)
+REG_BASE + 1 → Height (mm, rounded integer)
+*/
+/*
+
+void wifiConnection(void* parameters) {
+  while (1) {
+    // Always service Modbus & MQTT
+    mb.task();
+    mqttClient.loop();
+
+    // ----- Update Modbus registers + display every 5s -----
+    if (millis() - lastDisplay > 5000) {
+      lastDisplay = millis();
+
+      // Get tank readings
+      float volume_liters = getLevelLiters();   // e.g., 4079.85
+      int volumeInt = (int)round(volume_liters); // store as whole liters
+      int heightInt = (int)round(height_mm);     // store as whole mm
+
+      // Update Modbus registers (16-bit safe)
+      mb.Hreg(REG_BASE + 0, (uint16_t)volumeInt);
+      mb.Hreg(REG_BASE + 1, (uint16_t)heightInt);
+
+      // ✅ Debug: verify register updates
+      uint16_t regVol = mb.Hreg(REG_BASE + 0);
+      uint16_t regHeight = mb.Hreg(REG_BASE + 1);
+
+      if (regVol == volumeInt && regHeight == heightInt) {
+        Serial.printf("✅ Holding registers updated: Volume=%u, Height=%u\n",
+                      regVol, regHeight);
+      } else {
+        Serial.printf("⚠️ Holding register mismatch! Expected (V=%d,H=%d), got (V=%u,H=%u)\n",
+                      volumeInt, heightInt, regVol, regHeight);
+      }
+
+      // Update display
+      StatusDisplay();
+      if (WiFi.status() == WL_CONNECTED) {
+        wifiReadyDisplay(local_IP);
+        Serial.println("WiFi Connected");
+      }
+      DistanceDisplay(heightInt, volumeInt);
+    }
+
+    vTaskDelay(10 / portTICK_PERIOD_MS);  // small delay so task yields
+  }
+}
+*/
+
+/*
+this function stores
+REG_BASE + 0 → Volume (L, rounded integer)
+REG_BASE + 1 → Height (mm, rounded integer)
+REG_BASE + 2 → Fill percentage (0–100 %)
+*/
+void wifiConnection(void* parameters) {
+  while (1) {
+    // Always service Modbus & MQTT
+    mb.task();
+    mqttClient.loop();
+
+    // ----- Update Modbus registers + display every 5s -----
+    if (millis() - lastDisplay > 5000) {
+      lastDisplay = millis();
+
+      // Get tank readings
+      float volume_liters = getLevelLiters();     // e.g., 4079.85
+      int volumeInt = (int)round(volume_liters);  // whole liters
+      int heightInt = (int)round(height_mm);      // whole mm
+
+      // Calculate percentage fill
+      int fillPercent = 0;
+      if (deviceSettings.tankHeight > 0) {
+        fillPercent = (int)round(((float)heightInt / deviceSettings.tankHeight) * 100.0);
+        if (fillPercent > 100) fillPercent = 100;  // clamp max
+        if (fillPercent < 0) fillPercent = 0;      // clamp min
+      }
+
+      // Update Modbus registers (16-bit safe)
+      mb.Hreg(REG_BASE + 0, (uint16_t)volumeInt);    // Volume
+      mb.Hreg(REG_BASE + 1, (uint16_t)heightInt);    // Height
+      mb.Hreg(REG_BASE + 2, (uint16_t)fillPercent);  // Percentage
+
+      // ✅ Debug: verify register updates
+      uint16_t regVol = mb.Hreg(REG_BASE + 0);
+      uint16_t regHeight = mb.Hreg(REG_BASE + 1);
+      uint16_t regFill = mb.Hreg(REG_BASE + 2);
+
+      if (regVol == volumeInt && regHeight == heightInt && regFill == fillPercent) {
+        Serial.printf("✅ Modbus updated: Volume=%u L | Height=%u mm | Fill=%u%%\n",
+                      regVol, regHeight, regFill);
+      } else {
+        Serial.printf("⚠️ Modbus mismatch! Expected (V=%d,H=%d,F=%d), got (V=%u,H=%u,F=%u)\n",
+                      volumeInt, heightInt, fillPercent,
+                      regVol, regHeight, regFill);
+      }
+
+      // Update display
+      StatusDisplay();
+      if (WiFi.status() == WL_CONNECTED) {
+        wifiReadyDisplay(local_IP);
+        Serial.println("WiFi Connected");
+      }
+      DistanceDisplay(heightInt, volumeInt);
+    }
+
+    vTaskDelay(10 / portTICK_PERIOD_MS);  // small delay so task yields
+  }
+}
+
+void wifiReadyDisplay(IPAddress ip) {
+  clearLCDLine(3);
+  lcd.setCursor(0, 3);
+  lcd.print("IP : ");
+  lcd.setCursor(5, 3);
+  // Convert IPAddress to char array
+  char ipChar[16];  // Enough for "255.255.255.255\0"
+  snprintf(ipChar, sizeof(ipChar), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+
+  lcd.print(ipChar);  // ✅ print C-style string
+}
+
 
 
 
@@ -92,114 +320,6 @@ void StatusDisplay() {
 //     lcd.print("Reading");
 //   }
 // }
-
-void DistanceDisplay(float height_mm, int volume_liters) {
-  if (height_mm >= 0) {
-    // Update Level value only (right-aligned from column 7)
-    lcd.setCursor(7, 0);
-    lcd.print("        ");  // Clear previous value (8 spaces)
-    lcd.setCursor(7, 0);
-    lcd.print(height_mm / 1000.0, 2);  // e.g., 1.23
-    lcd.print(" m");
-
-    // Update Volume value (right-aligned from column 8)
-    lcd.setCursor(8, 1);
-    lcd.print("       ");  // Clear previous value
-    lcd.setCursor(8, 1);
-    lcd.print(volume_liters);
-    lcd.print(" L");
-
-    //Serial.printf("lcd height_mm: %.2f mm, volume_liters: %d L\n", height_mm, volume_liters);
-  } else {
-    lcd.setCursor(7, 0);
-    lcd.print("Invalid");
-
-    lcd.setCursor(8, 1);
-    lcd.print("Reading");
-  }
-}
-
-
-MsgStructure Conv(String Message) {
-
-  MsgStructure Conv1;
-
-  char* msg = new char[Message.length() + 1];
-  strcpy(msg, Message.c_str());
-  int i = 0;
-
-  for (i = 0; i <= 19; i++) {
-    Conv1.str1 += msg[i];
-  }
-
-  if (Message.length() > 20) {
-    for (int j = i; j <= Message.length() - 1; j++) {
-      Conv1.str2 += msg[j];
-    }
-  }
-
-  return Conv1;
-}
-
-void clearLCDLine(int line) {
-
-  for (int n = 0; n < 20; n++) {  // 20 indicates symbols in line. For 2x16 LCD write - 16
-    lcd.setCursor(n, line);
-    lcd.print(" ");
-  }
-  lcd.setCursor(0, line);  // set cursor in the beginning of deleted line
-}
-
-void clearLCDLine(int line, int startCell) {
-
-  for (int n = startCell; n < 20; n++) {  // 20 indicates symbols in line. For 2x16 LCD write - 16
-    lcd.setCursor(n, line);
-    lcd.print(" ");
-  }
-  lcd.setCursor(0, line);  // set cursor in the beginning of deleted line
-}
-
-void wifiConnection(void* parameters) {
-  while (1) {
-    mb.task();
-
-    // Update status every 5s
-    if (millis() - lastDisplay > 5000) {
-      lastDisplay = millis();
-
-      float volume_liters = getLevelLiters();  // updates global height_mm
-      int volumeInt = (int)volume_liters;
-
-      mb.Hreg(REG_BASE + 0, volumeInt);
-      mb.Hreg(REG_BASE + 1, height_mm);
-      StatusDisplay();
-      if (WiFi.status() == WL_CONNECTED) {
-        wifiReadyDisplay(local_IP);
-        Serial.println("WiFi Connected");
-      }
-      DistanceDisplay(height_mm, volumeInt);  // ✅ no flicker now
-    }
-    // if (millis() - lastDisplay > 5000) {
-    //   lastDisplay = millis();
-
-    //   float volume_liters = getLevelLiters();  // this also updates global height_mm
-    //   int volumeInt = (int)volume_liters;
-
-    //   mb.Hreg(REG_BASE + 0, volumeInt);
-    //   mb.Hreg(REG_BASE + 1, height_mm);
-
-    //   StatusDisplay();  // Optional: shows "Level:" and "Volume:"
-    //   DistanceDisplay(height_mm, volumeInt);  // ✅ update LCD values
-    //   wifiReadyDisplay(local_IP);             // ✅ update IP on line 3
-
-    //   Serial.println("WiFi Connected");
-    // }
-
-    // Delay or yield to avoid WDT resets
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-}
-
 // void wifiConnection(void* parameters) {
 //   // InitializeWiFi();
 //   while (1) {
@@ -240,15 +360,6 @@ void wifiConnection(void* parameters) {
 //     }
 //   }
 // }
-void wifiReadyDisplay(IPAddress ip) {
-  clearLCDLine(3);
-  lcd.setCursor(0, 3);
-  // Convert IPAddress to char array
-  char ipChar[16];  // Enough for "255.255.255.255\0"
-  snprintf(ipChar, sizeof(ipChar), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
-
-  lcd.print(ipChar);  // ✅ print C-style string
-}
 // // Last known good timestamps
 // unsigned long sensor1_last_good = 0;
 // unsigned long ds_last_good = 0;
