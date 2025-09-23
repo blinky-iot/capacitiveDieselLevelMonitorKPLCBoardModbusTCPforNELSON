@@ -325,7 +325,7 @@ float voltageTable[numPoints] = {
 bool rtcTimeOk = false;
 bool sdCardStatus = false;
 
-const int valvePin = 26;
+const int valvePin = 19;
 #define MAX_BUFFER_SIZE 64
 #define MODBUSIP_DEBUG
 #include <ModbusIP_ESP8266.h>
