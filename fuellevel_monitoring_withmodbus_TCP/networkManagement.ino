@@ -192,9 +192,45 @@ bool ensureMQTT() {
 }
 
 // --- WiFi Connection with 30s Timeout
+// bool connectWiFi() {
+//   WiFi.begin(ssid, password);
+//   networkConnected = false;
+//   Serial.print("Connecting to WiFi");
+
+//   unsigned long startAttemptTime = millis();
+//   const unsigned long timeout = 30000;  // 30 seconds
+
+//   while (WiFi.status() != WL_CONNECTED) {
+//     Serial.print(".");
+//     delay(500);
+
+//     if (millis() - startAttemptTime > timeout) {
+//       Serial.println("\n❌ WiFi connection timed out");
+//       return false;
+//     }
+//   }
+
+//   networkConnected = true;
+//   Serial.println("\n✅ WiFi connected");
+//   Serial.print("📡 IP address: ");
+//   Serial.println(WiFi.localIP());
+//   return true;
+//   // Start Modbus TCP server
+//   mb.server();
+
+//   // Add 10 Holding Registers
+//   for (int i = 0; i < REG_COUNT; i++) {
+//     mb.addHreg(REG_BASE + i);
+//     mb.Hreg(REG_BASE + i, i);  // Optional: preset values 0–9
+//   }
+// }
+
 bool connectWiFi() {
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("⚠️ Failed to configure static IP");
+  }
+
   WiFi.begin(ssid, password);
-  networkConnected = false;
   Serial.print("Connecting to WiFi");
 
   unsigned long startAttemptTime = millis();
@@ -210,21 +246,21 @@ bool connectWiFi() {
     }
   }
 
-  networkConnected = true;
   Serial.println("\n✅ WiFi connected");
   Serial.print("📡 IP address: ");
   Serial.println(WiFi.localIP());
-  return true;
+
   // Start Modbus TCP server
   mb.server();
 
-  // Add 10 Holding Registers
+  // Add Holding Registers
   for (int i = 0; i < REG_COUNT; i++) {
     mb.addHreg(REG_BASE + i);
-    mb.Hreg(REG_BASE + i, i);  // Optional: preset values 0–9
+    mb.Hreg(REG_BASE + i, 0);  // initialize all to 0
   }
-}
 
+  return true;
+}
 String interpretMqttState(int state) {
   switch (state) {
     case -4: return "Connection Timeout";
