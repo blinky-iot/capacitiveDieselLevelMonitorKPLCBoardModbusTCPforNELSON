@@ -1,4 +1,7 @@
 #include "definitions.h"
+int Volume = 0;
+int Fill_Percentage = 0;
+
 TaskHandle_t BackgroundProcessor;
 void initWatchdog(int timeoutSeconds = 600) {
   // Initialize the Task Watchdog Timer
@@ -8,7 +11,6 @@ void initWatchdog(int timeoutSeconds = 600) {
   // Add the tasks you want to monitor
   esp_task_wdt_add(NULL);  // Add current task (usually loop or setup task)
 }
-
 
 void setup() {
   Serial.begin(115200);
@@ -57,27 +59,14 @@ void loop() {
   Serial.print("Frequency: ");
   Serial.print(freqHz);
 
-  // if (millis() - lastLCDUpdate >= lcdUpdateInterval) {
-  //   lastLCDUpdate = millis();
-
-  //   // Get latest values
-  //   float volume_liters = getLevelLiters();  // this updates height_mm globally
-  //   int volumeInt = (int)volume_liters;
-
-  //   // Display on LCD
-  //   DistanceDisplay(height_mm, volumeInt);
-  // }
-
-
-
   unsigned long currentTime = millis();
 
-  if (currentTime - lastTelemetryTime >= deviceSettings.telemetryInterval * 1000 || startupTelemetry) {
-    lastTelemetryTime = currentTime;  // Update timestamp first
-    Serial.println("----------------Sending telemetry to server-----------------");
-    telemetryLoop();
-    startupTelemetry = false;
-  }
+  // if (currentTime - lastTelemetryTime >= deviceSettings.telemetryInterval * 1000 || startupTelemetry) {
+  //   lastTelemetryTime = currentTime;  // Update timestamp first
+  //   Serial.println("----------------Sending telemetry to server-----------------");
+  //   telemetryLoop();
+  //   startupTelemetry = false;
+  // }
 
 
   delay(100);
