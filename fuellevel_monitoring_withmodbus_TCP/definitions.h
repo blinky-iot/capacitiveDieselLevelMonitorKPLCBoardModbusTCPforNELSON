@@ -20,13 +20,15 @@
 #include "freertos/task.h"
 
 
-#define TINY_GSM_MODEM_SIM800  // ✅ Define your modem model here
+#define TINY_GSM_MODEM_SIM800  //✅ Define your modem model here
 #include <TinyGsmClient.h>
 #include <StreamDebugger.h>
 
 #include <Preferences.h>
 Preferences preferences;
 
+//#define USE_DHCP
+#define USE_STATIC_IP
 
 //#define USE_GSM
 #define USE_WIFI
@@ -134,19 +136,19 @@ double height_mm;
 //float volume_liters;
 // --- Global Struct for Config
 struct DeviceSettings {
-  char TOKEN[64] = "nelsonYb5LaYMNChr6hf";//or 2nelsonYb5LaYMNChr6hf
+  char TOKEN[64] = "nelsonYb5LaYMNChr6hf";  //or 2nelsonYb5LaYMNChr6hf
   char SERVER[64] = "telemetry.blinkelectrics.co.ke";
   int port = 1883;
   int telemetryInterval = 60;
   int measurementInterval = 5000;
 
-  char tankType[20]="rectangular";  // "cylindrical" or "rectangular"
+  char tankType[20] = "rectangular";  // "cylindrical" or "rectangular"
   float tankLength;
   float tankWidth;
   float tankHeight;
   float tankRadius;
-  char sensorType[20]="ultrasonic";
-  int ultrasonicOffset =100;
+  char sensorType[20] = "ultrasonic";
+  int ultrasonicOffset = 100;
 };
 
 
@@ -338,8 +340,8 @@ const int REG_COUNT = 10;
 // 📌 Create ModbusIP server instance
 ModbusIP mb;
 //IPAddress local_IP(192, 168, 1, 68);
-IPAddress local_IP(192, 168, 1, 69);
-IPAddress gateway(192,168,1,1);
+IPAddress local_IP(192, 168, 1, 72);
+IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 
 int lcdColumns = 20;
@@ -375,3 +377,16 @@ const unsigned long lcdUpdateInterval = 5000;  // 5 seconds
 
 
 float getAvgFrequency_EMA(uint8_t samples, float alpha);
+bool shouldSendTelemetry() {
+#ifdef USE_WIFI
+#ifdef USE_STATIC_IP
+  return false;  // Don't send telemetry in static IP mode
+#else
+  return true;  // Send telemetry in DHCP mode
+#endif
+#elif defined(USE_GSM)
+  return true;            // Send telemetry in GSM mode
+#else
+  return false;  // No network mode defined
+#endif
+}
