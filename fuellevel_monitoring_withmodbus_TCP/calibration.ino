@@ -399,10 +399,6 @@ bool calibrateFromAttributes(JsonObject &shared) {
 }
 
 
-
-
-
-
 // bool saveCalibrationData(const char *filename) {
 //   File file = LittleFS.open(filename, "w");
 //   if (!file) {

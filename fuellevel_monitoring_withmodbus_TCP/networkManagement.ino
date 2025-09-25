@@ -189,9 +189,6 @@ bool ensureMQTT() {
 }
 
 
-
-
-
 // 1️⃣ First WiFi connection (DHCP) → ensures MQTT works
 bool connectWiFiDHCP() {
   WiFi.begin(ssid, password);
@@ -251,9 +248,6 @@ bool connectWiFiStatic() {
 
   return true;
 }
-
-
-
 
 
 String interpretMqttState(int state) {
@@ -429,7 +423,7 @@ bool mqttConnect() {
 
       mqttConnected = false;
       delay(2000);   // wait before retrying
-      return false;  // remove this return if you want retries
+      //return false;  // remove this return if you want retries
     }
   }
 
@@ -893,10 +887,11 @@ void telemetryLoop() {
   }
   powerDownModem();
 }
+
 bool maintainWiFiConnection() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("⚠️ WiFi disconnected. Reconnecting...");
-    if (connectWiFi()) {
+    if (connectWiFiDHCP()) {
       // MQTT connection
       if (ensureMQTT()) return true;
       else {

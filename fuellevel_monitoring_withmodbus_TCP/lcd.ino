@@ -67,9 +67,9 @@ void StatusDisplay() {
   lcd.print("VLV: ");  // Clear old text
   lcd.setCursor(17, 0);
   if (valveOpen) {
-    lcd.print("OFF");
-  } else {
     lcd.print("ON");
+  } else {
+    lcd.print("OFF");
   }
 }
 
@@ -197,10 +197,11 @@ REG_BASE + 1 → Height (mm, rounded integer)
 REG_BASE + 2 → Fill percentage (0–100 %)
 */
 void wifiConnection(void* parameters) {
+
   while (1) {
     // Always service Modbus & MQTT
     mb.task();
-    mqttClient.loop();
+    //mqttClient.loop();
 
     // ----- Update Modbus registers + display every 5s -----
     if (millis() - lastDisplay > 5000) {
@@ -249,7 +250,15 @@ void wifiConnection(void* parameters) {
 
     vTaskDelay(10 / portTICK_PERIOD_MS);  // small delay so task yields
   }
+
 }
+
+
+
+
+
+
+
 
 void wifiReadyDisplay(IPAddress ip) {
   clearLCDLine(3);
