@@ -242,7 +242,8 @@ void wifiConnection(void* parameters) {
       // Update display
       StatusDisplay();
       if (WiFi.status() == WL_CONNECTED) {
-        wifiReadyDisplay(local_IP);
+        //wifiReadyDisplay(local_IP);
+         wifiReadyDisplay(); 
         Serial.println("WiFi Connected");
       }
       DistanceDisplay(heightInt, volumeInt);
@@ -257,21 +258,41 @@ void wifiConnection(void* parameters) {
 
 
 
+void wifiReadyDisplay() {
+    // Load stored static IP (or defaults)
+    preferences.begin("netcfg", true);  // read-only
 
+    IPAddress ip(
+        preferences.getUInt("ip1", DEFAULT_LOCAL_IP[0]),
+        preferences.getUInt("ip2", DEFAULT_LOCAL_IP[1]),
+        preferences.getUInt("ip3", DEFAULT_LOCAL_IP[2]),
+        preferences.getUInt("ip4", DEFAULT_LOCAL_IP[3])
+    );
 
+    preferences.end();
 
-void wifiReadyDisplay(IPAddress ip) {
-  clearLCDLine(3);
-  lcd.setCursor(0, 3);
-  lcd.print("IP : ");
-  lcd.setCursor(5, 3);
-  // Convert IPAddress to char array
-  char ipChar[16];  // Enough for "255.255.255.255\0"
-  snprintf(ipChar, sizeof(ipChar), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+    // Clear line 3 on LCD
+    clearLCDLine(3);
 
-  lcd.print(ipChar);  // ✅ print C-style string
+    // Display
+    lcd.setCursor(0, 3);
+    lcd.print("IP: ");
+    lcd.print(ip);  // IPAddress prints in x.x.x.x format
 }
 
+
+
+// void wifiReadyDisplay(IPAddress ip) {
+//   clearLCDLine(3);
+//   lcd.setCursor(0, 3);
+//   lcd.print("IP : ");
+//   lcd.setCursor(5, 3);
+//   // Convert IPAddress to char array
+//   char ipChar[16];  // Enough for "255.255.255.255\0"
+//   snprintf(ipChar, sizeof(ipChar), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+
+//   lcd.print(ipChar);  // ✅ print C-style string
+// }
 
 
 

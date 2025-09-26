@@ -189,11 +189,6 @@ void SensorReading(void* pvParameters) {
   }
 }
 
-
-
-
-
-
 void setupPCNT() {
   pcnt_config_t cfg = {
     .pulse_gpio_num = PIN_FREQ,

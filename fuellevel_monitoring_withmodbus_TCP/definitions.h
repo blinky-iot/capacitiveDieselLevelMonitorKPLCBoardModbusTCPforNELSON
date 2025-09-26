@@ -18,7 +18,7 @@
 // #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
+#include <WiFiManager.h>
 
 #define TINY_GSM_MODEM_SIM800  //✅ Define your modem model here
 #include <TinyGsmClient.h>
@@ -124,8 +124,16 @@ String filteredPayload = "{}";
 
 
 // --- WiFi Settings
-const char* ssid = "Blink Electrics";
-const char* password = "blink2023?";
+// const char* ssid = "Blink Electrics";
+// const char* password = "blink2023?";
+// ===== Default WiFi Settings (used only on first boot) =====
+#define DEFAULT_SSID        "Blink Electrics"
+#define DEFAULT_PASSWORD    "blink2023?"
+
+#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 72)
+#define DEFAULT_GATEWAY     IPAddress(192, 168, 1, 1)
+#define DEFAULT_SUBNET      IPAddress(255, 255, 255, 0)
+
 
 // --- MQTT & Config Settings
 WiFiClient espClient;
@@ -339,10 +347,10 @@ const int REG_COUNT = 10;
 
 // 📌 Create ModbusIP server instance
 ModbusIP mb;
-//IPAddress local_IP(192, 168, 1, 68);
-IPAddress local_IP(192, 168, 1, 72);
-IPAddress gateway(192, 168, 1, 1);
-IPAddress subnet(255, 255, 255, 0);
+// //IPAddress local_IP(192, 168, 1, 68);
+// IPAddress local_IP(192, 168, 1, 72);
+// IPAddress gateway(192, 168, 1, 1);
+// IPAddress subnet(255, 255, 255, 0);
 
 int lcdColumns = 20;
 int lcdRows = 4;
@@ -390,3 +398,5 @@ bool shouldSendTelemetry() {
   return false;  // No network mode defined
 #endif
 }
+
+

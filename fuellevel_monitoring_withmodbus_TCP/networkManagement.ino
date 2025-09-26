@@ -188,10 +188,11 @@ bool ensureMQTT() {
   return false;
 }
 
-
+/*
 // 1️⃣ First WiFi connection (DHCP) → ensures MQTT works
 bool connectWiFiDHCP() {
-  WiFi.begin(ssid, password);
+  //WiFi.begin(ssid, password);
+  WiFi.begin(DEFAULT_SSID, DEFAULT_PASSWORD);
   networkConnected = false;
   Serial.print("Connecting to WiFi");
 
@@ -216,11 +217,11 @@ bool connectWiFiDHCP() {
 
 // 2️⃣ Second WiFi connection (Static + Modbus)
 bool connectWiFiStatic() {
-  if (!WiFi.config(local_IP, gateway, subnet)) {
+  if (!WiFi.config(DEFAULT_LOCAL_IP, DEFAULT_GATEWAY, DEFAULT_SUBNET)) {
     Serial.println("⚠️ Failed to configure static IP");
   }
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(DEFAULT_SSID, DEFAULT_PASSWORD);
   Serial.print("Connecting to WiFi (Static)");
 
   unsigned long startAttemptTime = millis();
@@ -248,6 +249,108 @@ bool connectWiFiStatic() {
 
   return true;
 }
+*/
+// 1️⃣ WiFi (DHCP + MQTT)
+bool connectWiFiDHCP() {
+  Preferences preferences;
+  preferences.begin("netcfg", true);
+
+  String ssid     = preferences.getString("ssid", DEFAULT_SSID);
+  String password = preferences.getString("pass", DEFAULT_PASSWORD);
+
+  preferences.end();
+
+  WiFi.begin(ssid.c_str(), password.c_str());
+  networkConnected = false;
+  Serial.printf("Connecting to WiFi (DHCP) SSID: %s\n", ssid.c_str());
+
+  unsigned long startAttemptTime = millis();
+  const unsigned long timeout = 30000;
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+    if (millis() - startAttemptTime > timeout) {
+      Serial.println("\n❌ WiFi connection timed out");
+      return false;
+    }
+  }
+
+  networkConnected = true;
+  Serial.println("\n✅ WiFi connected (DHCP)");
+  Serial.print("📡 IP address: ");
+  Serial.println(WiFi.localIP());
+  return true;
+}
+
+// 2️⃣ WiFi (Static + Modbus, no MQTT)
+bool connectWiFiStatic() {
+  Preferences preferences;
+  preferences.begin("netcfg", true);
+
+  String ssid     = preferences.getString("ssid", DEFAULT_SSID);
+  String password = preferences.getString("pass", DEFAULT_PASSWORD);
+
+  IPAddress local_IP(
+    preferences.getUInt("ip1", DEFAULT_LOCAL_IP[0]),
+    preferences.getUInt("ip2", DEFAULT_LOCAL_IP[1]),
+    preferences.getUInt("ip3", DEFAULT_LOCAL_IP[2]),
+    preferences.getUInt("ip4", DEFAULT_LOCAL_IP[3])
+  );
+  IPAddress gateway(
+    preferences.getUInt("gw1", DEFAULT_GATEWAY[0]),
+    preferences.getUInt("gw2", DEFAULT_GATEWAY[1]),
+    preferences.getUInt("gw3", DEFAULT_GATEWAY[2]),
+    preferences.getUInt("gw4", DEFAULT_GATEWAY[3])
+  );
+  IPAddress subnet(
+    preferences.getUInt("sn1", DEFAULT_SUBNET[0]),
+    preferences.getUInt("sn2", DEFAULT_SUBNET[1]),
+    preferences.getUInt("sn3", DEFAULT_SUBNET[2]),
+    preferences.getUInt("sn4", DEFAULT_SUBNET[3])
+  );
+
+  preferences.end();
+
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+    Serial.println("⚠️ Failed to configure static IP");
+  }
+
+  WiFi.begin(ssid.c_str(), password.c_str());
+  Serial.printf("Connecting to WiFi (Static) SSID: %s\n", ssid.c_str());
+
+  unsigned long startAttemptTime = millis();
+  const unsigned long timeout = 30000;
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+    if (millis() - startAttemptTime > timeout) {
+      Serial.println("\n❌ WiFi connection timed out");
+      return false;
+    }
+  }
+
+  Serial.println("\n✅ WiFi connected (Static)");
+  Serial.print("📡 IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // Start Modbus TCP server
+  mb.server();
+  for (int i = 0; i < REG_COUNT; i++) {
+    mb.addHreg(REG_BASE + i);
+    mb.Hreg(REG_BASE + i, 0);
+  }
+
+  return true;
+}
+
+
+
+
+
+
+
 
 
 String interpretMqttState(int state) {
