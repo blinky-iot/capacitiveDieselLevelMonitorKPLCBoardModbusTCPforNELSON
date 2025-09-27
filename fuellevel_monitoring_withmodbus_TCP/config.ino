@@ -5,7 +5,7 @@
 #define RESET_PASSWORD "blinkreset"
 
 // Default AP credentials
-#define CONFIG_AP_SSID "COSMOS01"
+#define CONFIG_AP_SSID "COSMOS02"
 #define CONFIG_AP_PASS "12345678" 
 // Timeout for config portal (seconds)
 #define CONFIG_TIMEOUT 60
@@ -67,7 +67,8 @@ void setupConfig() {
   lcd.setCursor(0, 2);
   lcd.print("Pass: 12345678");
   lcd.setCursor(3, 3);
-  lcd.print("Timeout: 20s");
+  lcd.print("Timeout: ");
+  lcd.print(CONFIG_TIMEOUT);
 
   // ---- Always start AP first ----
   if (!wm.startConfigPortal(CONFIG_AP_SSID, CONFIG_AP_PASS)) {
