@@ -5,7 +5,7 @@
 #define RESET_PASSWORD "blinkreset"
 
 // Default AP credentials
-#define CONFIG_AP_SSID "COSMOS02"
+#define CONFIG_AP_SSID "COSMOS1"
 #define CONFIG_AP_PASS "12345678" 
 // Timeout for config portal (seconds)
 #define CONFIG_TIMEOUT 60
