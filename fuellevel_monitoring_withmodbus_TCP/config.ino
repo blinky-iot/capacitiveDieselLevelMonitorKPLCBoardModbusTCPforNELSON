@@ -1,16 +1,20 @@
 
 
-//working
+// working
 
 #define RESET_PASSWORD "blinkreset"
 
 // Default AP credentials
 #define CONFIG_AP_SSID "LIMURU 1"
-#define CONFIG_AP_PASS "12345678" 
+
+#define CONFIG_AP_SSID "COSMOS1"
+
+#define CONFIG_AP_PASS "12345678"
 // Timeout for config portal (seconds)
 #define CONFIG_TIMEOUT 30
 
-void setupConfig() {
+void setupConfig()
+{
   preferences.begin("netcfg", false);
 
   // Load stored Wi-Fi credentials (or defaults)
@@ -18,32 +22,31 @@ void setupConfig() {
   String password = preferences.getString("pass", DEFAULT_PASSWORD);
 
   // Load stored mode (0 = DHCP, 1 = Static)
-  int netMode = preferences.getInt("netmode", 0);  // default = DHCP
+  int netMode = preferences.getInt("netmode", 0); // default = DHCP
 
   // Load stored Static IP config (or defaults)
   IPAddress local_IP(
-    preferences.getUInt("ip1", DEFAULT_LOCAL_IP[0]),
-    preferences.getUInt("ip2", DEFAULT_LOCAL_IP[1]),
-    preferences.getUInt("ip3", DEFAULT_LOCAL_IP[2]),
-    preferences.getUInt("ip4", DEFAULT_LOCAL_IP[3]));
+      preferences.getUInt("ip1", DEFAULT_LOCAL_IP[0]),
+      preferences.getUInt("ip2", DEFAULT_LOCAL_IP[1]),
+      preferences.getUInt("ip3", DEFAULT_LOCAL_IP[2]),
+      preferences.getUInt("ip4", DEFAULT_LOCAL_IP[3]));
   IPAddress gateway(
-    preferences.getUInt("gw1", DEFAULT_GATEWAY[0]),
-    preferences.getUInt("gw2", DEFAULT_GATEWAY[1]),
-    preferences.getUInt("gw3", DEFAULT_GATEWAY[2]),
-    preferences.getUInt("gw4", DEFAULT_GATEWAY[3]));
+      preferences.getUInt("gw1", DEFAULT_GATEWAY[0]),
+      preferences.getUInt("gw2", DEFAULT_GATEWAY[1]),
+      preferences.getUInt("gw3", DEFAULT_GATEWAY[2]),
+      preferences.getUInt("gw4", DEFAULT_GATEWAY[3]));
   IPAddress subnet(
-    preferences.getUInt("sn1", DEFAULT_SUBNET[0]),
-    preferences.getUInt("sn2", DEFAULT_SUBNET[1]),
-    preferences.getUInt("sn3", DEFAULT_SUBNET[2]),
-    preferences.getUInt("sn4", DEFAULT_SUBNET[3]));
+      preferences.getUInt("sn1", DEFAULT_SUBNET[0]),
+      preferences.getUInt("sn2", DEFAULT_SUBNET[1]),
+      preferences.getUInt("sn3", DEFAULT_SUBNET[2]),
+      preferences.getUInt("sn4", DEFAULT_SUBNET[3]));
 
   // ---- WiFi Manager ----
   WiFiManager wm;
   wm.setConfigPortalTimeout(CONFIG_TIMEOUT);
 
-  wm.setSaveConfigCallback([]() {
-    Serial.println("💾 Config portal saved settings");
-  });
+  wm.setSaveConfigCallback([]()
+                           { Serial.println("💾 Config portal saved settings"); });
 
   // Custom fields
   WiFiManagerParameter custom_mode("mode", "0=DHCP, 1=Static", String(netMode).c_str(), 2);
@@ -71,10 +74,12 @@ void setupConfig() {
   lcd.print(CONFIG_TIMEOUT);
 
   // ---- Always start AP first ----
-  if (!wm.startConfigPortal(CONFIG_AP_SSID, CONFIG_AP_PASS)) {
+  if (!wm.startConfigPortal(CONFIG_AP_SSID, CONFIG_AP_PASS))
+  {
     Serial.println("⏱️ No config in 20s → using saved/defaults...");
 
-    if (netMode == 1) {  // static
+    if (netMode == 1)
+    { // static
       WiFi.config(local_IP, gateway, subnet);
     }
     WiFi.begin(ssid.c_str(), password.c_str());
@@ -84,7 +89,8 @@ void setupConfig() {
   }
 
   // ✅ Check for factory reset request
-  if (String(custom_reset.getValue()) == RESET_PASSWORD) {
+  if (String(custom_reset.getValue()) == RESET_PASSWORD)
+  {
     Serial.println("🛑 Factory reset requested, clearing preferences...");
     preferences.clear();
     preferences.end();
@@ -101,19 +107,22 @@ void setupConfig() {
 
   // Save Static IP values entered
   IPAddress newIP, newGW, newSN;
-  if (newIP.fromString(custom_ip.getValue())) {
+  if (newIP.fromString(custom_ip.getValue()))
+  {
     preferences.putUInt("ip1", newIP[0]);
     preferences.putUInt("ip2", newIP[1]);
     preferences.putUInt("ip3", newIP[2]);
     preferences.putUInt("ip4", newIP[3]);
   }
-  if (newGW.fromString(custom_gw.getValue())) {
+  if (newGW.fromString(custom_gw.getValue()))
+  {
     preferences.putUInt("gw1", newGW[0]);
     preferences.putUInt("gw2", newGW[1]);
     preferences.putUInt("gw3", newGW[2]);
     preferences.putUInt("gw4", newGW[3]);
   }
-  if (newSN.fromString(custom_sn.getValue())) {
+  if (newSN.fromString(custom_sn.getValue()))
+  {
     preferences.putUInt("sn1", newSN[0]);
     preferences.putUInt("sn2", newSN[1]);
     preferences.putUInt("sn3", newSN[2]);
@@ -124,10 +133,13 @@ void setupConfig() {
 
   // Apply chosen mode
   netMode = atoi(custom_mode.getValue());
-  if (netMode == 1) {
+  if (netMode == 1)
+  {
     WiFi.config(newIP, newGW, newSN);
     Serial.println("🌐 Using STATIC IP mode");
-  } else {
+  }
+  else
+  {
     Serial.println("🌐 Using DHCP mode");
   }
 
