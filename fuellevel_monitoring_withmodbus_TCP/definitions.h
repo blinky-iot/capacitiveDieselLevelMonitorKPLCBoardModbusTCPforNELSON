@@ -130,7 +130,8 @@ String filteredPayload = "{}";
 #define DEFAULT_SSID        "Blink Electrics"
 #define DEFAULT_PASSWORD    "blink2023?"
 
-#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 72)
+#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 74) //LIMURU 1
+//#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 75) //LIMURU 2
 #define DEFAULT_GATEWAY     IPAddress(192, 168, 1, 1)
 #define DEFAULT_SUBNET      IPAddress(255, 255, 255, 0)
 
@@ -399,4 +400,19 @@ bool shouldSendTelemetry() {
 #endif
 }
 
+// Add these to definitions.h (around line where other sensor variables are declared)
 
+// Modbus RTU Data (from slave)
+extern float modbusTemperature;     // Temperature from Modbus (°C)
+extern uint32_t modbusDistance;     // Distance from Modbus (mm)
+extern uint32_t modbusFrequency;    // Frequency from Modbus (Hz)
+extern bool modbusDataValid;        // Modbus connection status
+
+// Modbus RTU function prototypes
+void setupModbusRTU();
+void updateModbusData();
+float getModbusTemperature();
+uint32_t getModbusDistance();
+uint32_t getModbusFrequency();
+bool isModbusDataValid();
+bool isModbusConnected();

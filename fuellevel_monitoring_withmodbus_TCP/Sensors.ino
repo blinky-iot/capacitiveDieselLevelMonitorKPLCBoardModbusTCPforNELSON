@@ -9,11 +9,11 @@ void setupSensors() {
   esp_task_wdt_add(NULL);
 
   rtc.begin();
-  setupPCNT();
+  //setupPCNT();
   setupADC();
   initValveControl();
-  setupUltrasonic();
-  
+  //setupUltrasonic();
+
 
   xTaskCreatePinnedToCore(
     SensorReading,
@@ -24,14 +24,14 @@ void setupSensors() {
     &Task1,
     1);  // Core 1
 
-  xTaskCreatePinnedToCore(
-    GpsTask,
-    "GpsTask",
-    6000,
-    NULL,
-    1,
-    NULL,
-    0);  // Core 0
+  // xTaskCreatePinnedToCore(
+  // GpsTask,
+  // "GpsTask",
+  // 6000,
+  // NULL,
+  // 1,
+  // NULL,
+  // 0);  // Core 0
 
 
   // xTaskCreatePinnedToCore(
@@ -43,32 +43,32 @@ void setupSensors() {
   //   NULL,
   //   0);  // Core 1
 }
-void GpsTask(void* param) {
-  for (;;) {
-    handleGpsSession();              // Must run frequently
-    vTaskDelay(pdMS_TO_TICKS(200));  // 200ms interval is ideal
-  }
-}
+// void GpsTask(void* param) {
+//   for (;;) {
+//     handleGpsSession();              // Must run frequently
+//     vTaskDelay(pdMS_TO_TICKS(200));  // 200ms interval is ideal
+//   }
+// }
 
-void ultrasonic(void* param) {
-  float x;
-  for (;;) {
-    x = readUltrasonicCM();  // Must run frequently
-    if (x != -1 && x != -2) Height_ultrsnc = x;
-    else Serial.println(x);
-    vTaskDelay(pdMS_TO_TICKS(300));  // 200ms interval is ideal
-  }
-}
+// void ultrasonic(void* param) {
+//   float x;
+//   for (;;) {
+//     x = readUltrasonicCM();  // Must run frequently
+//     if (x != -1 && x != -2) Height_ultrsnc = x;
+//     else Serial.println(x);
+//     vTaskDelay(pdMS_TO_TICKS(300));  // 200ms interval is ideal
+//   }
+// }
 
-float getAvgFrequency_EMA(uint8_t samples = 15, float alpha = 0.15) {
-  float freq = measureFreqHz();  // Initial value
-  for (uint8_t i = 1; i < samples; ++i) {
-    float newFreq = measureFreqHz();
-    freqHz = alpha * newFreq + (1 - alpha) * freqHz;  // EMA formula
-    vTaskDelay(pdMS_TO_TICKS(4));
-  }
-  return freqHz;
-}
+// float getAvgFrequency_EMA(uint8_t samples = 15, float alpha = 0.15) {
+//   float freq = measureFreqHz();  // Initial value
+//   for (uint8_t i = 1; i < samples; ++i) {
+//     float newFreq = measureFreqHz();
+//     freqHz = alpha * newFreq + (1 - alpha) * freqHz;  // EMA formula
+//     vTaskDelay(pdMS_TO_TICKS(4));
+//   }
+//   return freqHz;
+// }
 
 // void SensorReading(void* pvParameters) {
 //   for (;;) {
@@ -132,6 +132,150 @@ float getAvgFrequency_EMA(uint8_t samples = 15, float alpha = 0.15) {
 //   }
 // }
 
+
+void SensorReading(void* pvParameters) {
+  for (;;) {
+    esp_task_wdt_reset();
+
+    // 1. Wait for valid Modbus data
+    if (!isModbusDataValid()) {
+      Serial.println("⚠️ Waiting for valid Modbus data...");
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      continue;
+    }
+
+    DateTime now = rtc.now();
+    float rtcTemp = rtc.getTemperature();
+    uint64_t tsUtcMs = (uint64_t)now.unixtime() * 1000ULL;
+
+    // 2. GET DATA FROM MODBUS (filtered and stable)
+    float modbusTemp = getModbusTemperature();   // Already filtered on slave
+    uint32_t modbusDist = getModbusDistance();   // Already filtered on slave
+    uint32_t modbusFreq = getModbusFrequency();  // Already filtered on slave
+
+    // 3. Calculate level and volume
+    float levelLiters = 0.0;
+    int Fill_Percentage = 0;
+
+    if (strcmp(deviceSettings.sensorType, "ultrasonic") == 0) {
+      // Ultrasonic sensor - use Modbus distance
+      height_mm = deviceSettings.tankHeight + deviceSettings.ultrasonicOffset - (modbusDist / 10.0f);
+
+      Serial.printf("📡 Ultrasonic (Modbus): %.1f mm → Height: %.1f mm\n",
+                    modbusDist, height_mm);
+
+    } else if (strcmp(deviceSettings.sensorType, "capacitive") == 0) {
+      // Capacitive sensor - use Modbus frequency
+      height_mm = frequencyToHeight((float)modbusFreq);
+
+      Serial.printf("🧪 Capacitive (Modbus): %u Hz → Height: %.1f mm\n",
+                    modbusFreq, height_mm);
+
+      // Check sensor status
+      if (sensorDisconnected((float)modbusFreq)) {
+        Serial.println("❌ Capacitive sensor disconnected");
+        height_mm = 0;
+      }
+    } else {
+      Serial.println("❌ Unknown sensor type");
+      vTaskDelay(pdMS_TO_TICKS(deviceSettings.measurementInterval));
+      continue;
+    }
+
+    // 4. Compute volume and percentage
+    if (height_mm > 0) {
+      levelLiters = calculateVolumeLiters(height_mm);
+
+      if (deviceSettings.tankHeight > 0) {
+        Fill_Percentage = (int)((height_mm * 100.0f) / deviceSettings.tankHeight);
+        Fill_Percentage = constrain(Fill_Percentage, 0, 100);
+      }
+    }
+
+
+
+    // if (height_mm > 0) {
+    //   // Get the tens digit (792.2105103 → 79)
+    //   int height_tens = (int)(height_mm / 10.0f);
+
+    //   // If calculateVolumeLiters expects mm, multiply by 10
+    //   float height_for_calculation = height_tens * 10.0f;  // 790.0
+
+    //   levelLiters = calculateVolumeLiters(height_for_calculation);
+
+    //   if (deviceSettings.tankHeight > 0) {
+    //     Fill_Percentage = (int)((height_for_calculation * 100.0f) / deviceSettings.tankHeight);
+    //     Fill_Percentage = constrain(Fill_Percentage, 0, 100);
+    //   }
+
+    //   // Optional: Update display with tens value
+    //   Serial.printf("Height: %d tens (%.1f mm)\n", height_tens, height_for_calculation);
+    // }
+
+
+
+    float batteryVoltage = getBatteryVoltage();
+
+    // Update global frequency variable (if still used elsewhere)
+    freqHz = (float)modbusFreq;
+
+    Serial.printf("📦 Volume: %.1f L | 📊 Fill: %d%% | Height: %.1f mm\n",
+                  levelLiters, Fill_Percentage, height_mm);
+
+    // 5. Valve control
+    valveState(Fill_Percentage);
+
+    // 6. JSON telemetry
+    FuelSensorStatus status = checkFuelSensor((float)modbusFreq);
+    const char* statusText[] = { "OK", "DISCONNECTED", "OUT_OF_RANGE" };
+
+    StaticJsonDocument<1024> doc;
+    doc["volume"] = roundf(levelLiters * 10) / 10.0;
+    doc["voltage"] = roundf(batteryVoltage * 100) / 100.0;
+    doc["fuelHz"] = (float)modbusFreq;  // Filtered frequency from Modbus
+    doc["SensorStatus"] = statusText[status];
+    doc["Height_cap"] = height_mm;
+    doc["Fill_Percentage"] = Fill_Percentage;
+    doc["rtcTemp"] = roundf(rtcTemp * 10) / 10.0;
+    doc["modbusTemperature"] = modbusTemp;  // Temperature from Modbus
+    doc["modbusDistance"] = modbusDist;     // Distance from Modbus
+
+    serializeJson(doc, telemetryPayload);
+    Serial.println("📤 Telemetry updated (using Modbus data)");
+
+    // 7. Filtered telemetry (remove empty fields)
+    StaticJsonDocument<1024> filteredDoc;
+    filteredDoc.set(doc);
+    if (levelLiters < 0.0f) filteredDoc.remove("volume");
+    filteredDoc["sdCardStatus"] = sdCardStatus;
+
+    serializeJson(filteredDoc, filteredPayload);
+    Serial.println("📤 Filtered telemetry: " + filteredPayload);
+
+    // 8. Log to SD
+    if (rtcTimeOk) {
+      // Assuming you have ultrasonicSensorStatus variable
+      int ultrasonicStatus = (strcmp(deviceSettings.sensorType, "ultrasonic") == 0) ? 1 : 0;
+
+      logToSD(tsUtcMs, levelLiters, batteryVoltage, (float)modbusFreq,
+              status, height_mm, rtcTemp,
+              (modbusDist / 10.0f), ultrasonicStatus);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(deviceSettings.measurementInterval));
+  }
+}
+
+
+
+
+
+
+
+
+
+
+/*
 void SensorReading(void* pvParameters) {
   for (;;) {
     esp_task_wdt_reset();
@@ -189,86 +333,229 @@ void SensorReading(void* pvParameters) {
   }
 }
 
-void setupPCNT() {
-  pcnt_config_t cfg = {
-    .pulse_gpio_num = PIN_FREQ,
-    .ctrl_gpio_num = PCNT_PIN_NOT_USED,
-    .lctrl_mode = PCNT_MODE_KEEP,
-    .hctrl_mode = PCNT_MODE_KEEP,
-    .pos_mode = PCNT_COUNT_INC,
-    .neg_mode = PCNT_COUNT_DIS,
-    .counter_h_lim = 32767,
-    .counter_l_lim = 0,
-    .unit = PCNT_UNIT,
-    .channel = PCNT_CH
-  };
-  pcnt_unit_config(&cfg);
-  pcnt_counter_clear(PCNT_UNIT);
-  pcnt_counter_resume(PCNT_UNIT);
-}
-float measureFreqHz() {
-  setupPCNT();
-  pcnt_counter_clear(PCNT_UNIT);
-  delay(PCNT_GATE_MS);
-  int16_t pulses = 0;
-  pcnt_get_counter_value(PCNT_UNIT, &pulses);
-  return (pulses * 1000.0f) / PCNT_GATE_MS;
-}
 
-double frequencyHz;
 
-float getAvgFrequency() {
-  float sum = 0;
-  for (uint8_t i = 0; i < NUM_SAMPLES; ++i) {
-    sum += measureFreqHz();
-    delay(2);
-  }
-  return sum / NUM_SAMPLES;
-}
+// void setupPCNT() {
+//   pcnt_config_t cfg = {
+//     .pulse_gpio_num = PIN_FREQ,
+//     .ctrl_gpio_num = PCNT_PIN_NOT_USED,
+//     .lctrl_mode = PCNT_MODE_KEEP,
+//     .hctrl_mode = PCNT_MODE_KEEP,
+//     .pos_mode = PCNT_COUNT_INC,
+//     .neg_mode = PCNT_COUNT_DIS,
+//     .counter_h_lim = 32767,
+//     .counter_l_lim = 0,
+//     .unit = PCNT_UNIT,
+//     .channel = PCNT_CH
+//   };
+//   pcnt_unit_config(&cfg);
+//   pcnt_counter_clear(PCNT_UNIT);
+//   pcnt_counter_resume(PCNT_UNIT);
+// }
+// float measureFreqHz() {
+//   setupPCNT();
+//   pcnt_counter_clear(PCNT_UNIT);
+//   delay(PCNT_GATE_MS);
+//   int16_t pulses = 0;
+//   pcnt_get_counter_value(PCNT_UNIT, &pulses);
+//   return (pulses * 1000.0f) / PCNT_GATE_MS;
+// }
+
+// double frequencyHz;
+
+// float getAvgFrequency() {
+//   float sum = 0;
+//   for (uint8_t i = 0; i < NUM_SAMPLES; ++i) {
+//     sum += measureFreqHz();
+//     delay(2);
+//   }
+//   return sum / NUM_SAMPLES;
+// }
+*/
 
 float frequencyToHeight(float freq) {
   freq = constrain(freq, calibrationData.fullHz, calibrationData.emptyHz);
   return (calibrationData.a * freq * freq + calibrationData.b * freq + calibrationData.c);
 }
 
+// float getLevelLiters() {
+//   float volume_liters = 0.0;
+//   float freq = 0.0;
+//   height_mm = 0;
+
+//   if (strcmp(deviceSettings.sensorType, "ultrasonic") == 0) {
+//     // Ultrasonic sensor
+//     if (ultrasonicSensorStatus == 1) {
+//       height_mm = deviceSettings.tankHeight + deviceSettings.ultrasonicOffset - Height_ultrsnc;
+//       Serial.println("📡 Using ultrasonic sensor");
+//       Serial.printf("🟢 Ultrasonic height: %.1f mm (offset: %d mm)\n", height_mm, deviceSettings.ultrasonicOffset);
+//     }
+//   } else if (strcmp(deviceSettings.sensorType, "capacitive") == 0) {
+//     // Capacitive sensor
+//     //freq = getAvgFrequency();
+//     if (freqHz == 0) {
+//       return 0.0;
+//     } else height_mm = frequencyToHeight(freqHz);
+
+//     if (sensorDisconnected(freqHz)) {
+//       Serial.println("❌ Capacitive sensor disconnected");
+//       return 0.0;
+//     }
+
+//     Serial.println("🧪 Using capacitive sensor");
+//     Serial.printf("🔵 Frequency: %.2f Hz | Height: %.1f mm\n", freqHz, height_mm);
+
+//   } else {
+//     // Unsupported sensor type
+//     Serial.println("❌ Unknown sensor type: " + String(deviceSettings.sensorType));
+//     return 0.0;
+//   }
+
+//   // Compute volume
+//   volume_liters = calculateVolumeLiters(height_mm);
+//   Serial.printf("[Fuel] Volume: %.2f L\n", volume_liters);
+//   return volume_liters;
+// }
+
+
 float getLevelLiters() {
   float volume_liters = 0.0;
-  float freq = 0.0;
-  height_mm = 0;
 
+  // 1. Check Modbus data validity
+  if (!isModbusDataValid()) {
+    Serial.println("❌ No valid Modbus data available");
+    height_mm = 0.0;  // Also reset global height
+    return 0.0;
+  }
+
+  // 2. Get data from Modbus
+  uint32_t modbusDist = getModbusDistance();   // mm
+  uint32_t modbusFreq = getModbusFrequency();  // Hz
+
+  // 3. Temporary variable for raw height calculation
+  float raw_height_mm = 0.0;
+
+  // 4. Sensor-specific RAW height calculation
   if (strcmp(deviceSettings.sensorType, "ultrasonic") == 0) {
     // Ultrasonic sensor
     if (ultrasonicSensorStatus == 1) {
-      height_mm = deviceSettings.tankHeight + deviceSettings.ultrasonicOffset - Height_ultrsnc;
-      Serial.println("📡 Using ultrasonic sensor");
-      Serial.printf("🟢 Ultrasonic height: %.1f mm (offset: %d mm)\n", height_mm, deviceSettings.ultrasonicOffset);
+      raw_height_mm = deviceSettings.tankHeight + deviceSettings.ultrasonicOffset - (modbusDist / 10.0f);
+      Serial.println("📡 Using ultrasonic sensor (from Modbus)");
+      Serial.printf("🟢 Ultrasonic raw height: %.1f mm (raw: %u mm, offset: %d mm)\n",
+                    raw_height_mm, modbusDist, deviceSettings.ultrasonicOffset);
     }
   } else if (strcmp(deviceSettings.sensorType, "capacitive") == 0) {
     // Capacitive sensor
-    //freq = getAvgFrequency();
-    if (freqHz == 0) {
+    if (modbusFreq == 0) {
+      height_mm = 0.0;  // Reset global height
       return 0.0;
-    } else height_mm = frequencyToHeight(freqHz);
+    }
 
-    if (sensorDisconnected(freqHz)) {
+    // Use filtered frequency from Modbus
+    raw_height_mm = frequencyToHeight((float)modbusFreq);
+
+    if (sensorDisconnected((float)modbusFreq)) {
+      Serial.println("❌ Capacitive sensor disconnected");
+      height_mm = 0.0;  // Reset global height
+      return 0.0;
+    }
+
+    Serial.println("🧪 Using capacitive sensor (from Modbus)");
+    Serial.printf("🔵 Frequency: %u Hz | Raw height: %.7f mm\n", modbusFreq, raw_height_mm);
+  } else {
+    Serial.println("❌ Unknown sensor type: " + String(deviceSettings.sensorType));
+    height_mm = 0.0;  // Reset global height
+    return 0.0;
+  }
+
+  // 5. TRUNCATE and UPDATE GLOBAL height_mm
+  if (raw_height_mm > 0) {
+    // Truncate to nearest 10mm: 792.2105103 → 790.0
+    int height_tens = (int)round(raw_height_mm / 10.0f);        // 79
+    height_mm = height_tens * 10.0f;                       // 790.0
+    
+    // Ensure it doesn't exceed tank height
+    if (deviceSettings.tankHeight > 0 && height_mm > deviceSettings.tankHeight) {
+      height_mm = deviceSettings.tankHeight;
+    }
+    
+    // Ensure minimum of 0
+    if (height_mm < 0) {
+      height_mm = 0.0;
+    }
+    
+    // Debug output
+    Serial.printf("📏 Height truncation: Raw=%.7f → Global=%d tens → %.1f mm\n",
+                  raw_height_mm, height_tens, height_mm);
+  } else {
+    height_mm = 0.0;  // Reset global height if invalid
+    Serial.println("❌ Invalid raw height calculated");
+    return 0.0;
+  }
+
+  // 6. Compute volume with TRUNCATED GLOBAL height_mm
+  volume_liters = calculateVolumeLiters(height_mm);
+  Serial.printf("[Fuel] Using global height: %.1f mm | Volume: %.2f L\n", 
+                height_mm, volume_liters);
+  
+  return volume_liters;
+}
+
+
+
+
+/*
+float getLevelLiters() {
+  float volume_liters = 0.0;
+
+  // 1. Check Modbus data validity
+  if (!isModbusDataValid()) {
+    Serial.println("❌ No valid Modbus data available");
+    return 0.0;
+  }
+
+  // 2. Get data from Modbus
+  uint32_t modbusDist = getModbusDistance();   // mm
+  uint32_t modbusFreq = getModbusFrequency();  // Hz
+
+  // 3. Sensor-specific height calculation
+  if (strcmp(deviceSettings.sensorType, "ultrasonic") == 0) {
+    // Ultrasonic sensor
+    if (ultrasonicSensorStatus == 1) {
+      height_mm = deviceSettings.tankHeight + deviceSettings.ultrasonicOffset - (modbusDist / 10.0f);
+      Serial.println("📡 Using ultrasonic sensor (from Modbus)");
+      Serial.printf("🟢 Ultrasonic height: %.1f mm (raw: %u mm, offset: %d mm)\n",
+                    height_mm, modbusDist, deviceSettings.ultrasonicOffset);
+    }
+  } else if (strcmp(deviceSettings.sensorType, "capacitive") == 0) {
+    // Capacitive sensor
+    if (modbusFreq == 0) {
+      return 0.0;
+    }
+
+    // Use filtered frequency from Modbus
+    height_mm = frequencyToHeight((float)modbusFreq);
+
+    if (sensorDisconnected((float)modbusFreq)) {
       Serial.println("❌ Capacitive sensor disconnected");
       return 0.0;
     }
 
-    Serial.println("🧪 Using capacitive sensor");
-    Serial.printf("🔵 Frequency: %.2f Hz | Height: %.1f mm\n", freqHz, height_mm);
-
+    Serial.println("🧪 Using capacitive sensor (from Modbus)");
+    Serial.printf("🔵 Frequency: %u Hz | Height: %.1f mm\n", modbusFreq, height_mm);
   } else {
-    // Unsupported sensor type
     Serial.println("❌ Unknown sensor type: " + String(deviceSettings.sensorType));
     return 0.0;
   }
 
-  // Compute volume
+  // 4. Compute volume
   volume_liters = calculateVolumeLiters(height_mm);
   Serial.printf("[Fuel] Volume: %.2f L\n", volume_liters);
   return volume_liters;
-}
+}*/
+
+
+
 
 void setupADC() {
   analogReadResolution(12);

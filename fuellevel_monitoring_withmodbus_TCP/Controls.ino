@@ -39,10 +39,10 @@ void controlValve(bool stateOfValve) {
   if (stateOfValve != previousstateOfValve) {
     if (stateOfValve) {
       Serial.println("✅ Action: Opening valve (pin HIGH)");
-      digitalWrite(valvePin, HIGH);
+      digitalWrite(valvePin, LOW);
     } else {
       Serial.println("✅ Action: Closing valve (pin LOW)");
-      digitalWrite(valvePin, LOW);
+      digitalWrite(valvePin, HIGH);
     }
   } else {
     // Valve state unchanged
@@ -55,10 +55,10 @@ void controlValve(bool stateOfValve) {
 // ---------------- Setup Initialization ----------------
 void initValveControl() {
   pinMode(valvePin, OUTPUT);
-  digitalWrite(valvePin, HIGH);  // ensure valve starts CLOSED
+  digitalWrite(valvePin, LOW);  // ensure valve starts CLOSED
   delay(2000);
-    digitalWrite(valvePin, LOW);  // ensure valve starts CLOSED
-  delay(2000);
+  //   digitalWrite(valvePin, HIGH);  // ensure valve starts CLOSED
+  // delay(2000);
   Serial.println("⚙️ Valve control initialized (default: CLOSED)");
 }
 

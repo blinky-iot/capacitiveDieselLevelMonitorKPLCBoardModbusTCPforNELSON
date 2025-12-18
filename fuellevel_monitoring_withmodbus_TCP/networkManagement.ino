@@ -878,8 +878,8 @@ bool sendGsmTelemetry() {
   int signalQuality = modem.getSignalQuality();
 
   // 📍 Last known GPS fix from SD
-  GpsFix lastFix;
-  bool hasFix = getLastGpsFromSD(lastFix);
+  // GpsFix lastFix;
+  // bool hasFix = getLastGpsFromSD(lastFix);
 
   // 📦 Prepare telemetry JSON
   StaticJsonDocument<384> doc;
@@ -889,13 +889,13 @@ bool sendGsmTelemetry() {
   doc["GSMbatteryLevel"] = batteryPercent;
   doc["rssi"] = signalQuality;
 
-  if (hasFix) {
-    doc["lat"] = roundf(lastFix.lat * 1000000) / 1000000.0;
-    doc["lon"] = roundf(lastFix.lon * 1000000) / 1000000.0;
-    doc["gpsTs"] = lastFix.timestamp;
-  } else {
-    SerialMon.println("⚠️ No GPS fix found in SD card.");
-  }
+  // if (hasFix) {
+  //   doc["lat"] = roundf(lastFix.lat * 1000000) / 1000000.0;
+  //   doc["lon"] = roundf(lastFix.lon * 1000000) / 1000000.0;
+  //   doc["gpsTs"] = lastFix.timestamp;
+  // } else {
+  //   SerialMon.println("⚠️ No GPS fix found in SD card.");
+  // }
 
   String json;
   serializeJson(doc, json);

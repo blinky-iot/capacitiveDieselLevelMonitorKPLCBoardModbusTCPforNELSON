@@ -25,34 +25,34 @@ bool initSD() {
   }
 
   // Create gps.csv if missing
-  if (!SD.exists("/gps.csv")) {
-    File gpsFile = SD.open("/gps.csv", FILE_WRITE);
-    if (gpsFile) {
-      gpsFile.println("timestamp,latitude,longitude");
-      gpsFile.close();
-      Serial.println("📄 Created gps.csv with header");
-    }
-  }
+  // if (!SD.exists("/gps.csv")) {
+  //   File gpsFile = SD.open("/gps.csv", FILE_WRITE);
+  //   if (gpsFile) {
+  //     gpsFile.println("timestamp,latitude,longitude");
+  //     gpsFile.close();
+  //     Serial.println("📄 Created gps.csv with header");
+  //   }
+  // }
 
   return true;
 }
 
-void logGpsToSD(uint64_t ts, float lat, float lon) {
-  if (!sdReady) {
-    Serial.println("❌ SD not available for logGpsToSD");
-    return;
-  }
+// void logGpsToSD(uint64_t ts, float lat, float lon) {
+//   if (!sdReady) {
+//     Serial.println("❌ SD not available for logGpsToSD");
+//     return;
+//   }
 
-  File f = SD.open(GPS_FILE, FILE_APPEND);
-  if (f) {
-    f.printf("%llu,%.6f,%.6f\n", ts, lat, lon);
-    f.flush();
-    f.close();
-    Serial.println("✅ Logged to SD (GPS)");
-  } else {
-    Serial.println("❌ Failed to open gps.csv for appending");
-  }
-}
+//   File f = SD.open(GPS_FILE, FILE_APPEND);
+//   if (f) {
+//     f.printf("%llu,%.6f,%.6f\n", ts, lat, lon);
+//     f.flush();
+//     f.close();
+//     Serial.println("✅ Logged to SD (GPS)");
+//   } else {
+//     Serial.println("❌ Failed to open gps.csv for appending");
+//   }
+// }
 void logToSD(uint64_t ts, float volume_liters, float battery_voltage, float freqHz, FuelSensorStatus status, float height_mm, float rtcTemp, float Height_ultrsnc, int ultrasonicSensorStatus) {
 
 
