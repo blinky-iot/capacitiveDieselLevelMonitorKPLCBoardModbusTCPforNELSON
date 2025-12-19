@@ -41,19 +41,21 @@ void setup() {
 
   // ---- Apply network mode selection ----
   preferences.begin("netcfg", false);
-  int netMode = preferences.getInt("netmode", 0);   // 0 = DHCP, 1 = Static
+  int netMode = preferences.getInt("netmode", 0);  // 0 = DHCP, 1 = Static
   preferences.end();
 
 #ifdef USE_WIFI
   if (netMode == 0) {
     // DHCP → WiFi + MQTT
-    while (!connectWiFiDHCP());
+    while (!connectWiFiDHCP())
+      ;
     if (mqttConnect()) {
       Serial.println("✅ Attributes sync done");
     }
   } else {
     // Static → WiFi only, no MQTT
-    while (!connectWiFiStatic());
+    while (!connectWiFiStatic())
+      ;
     Serial.println("🚫 MQTT skipped (Static IP mode)");
   }
 #endif
@@ -73,39 +75,40 @@ unsigned long lastTelemetryTime;
 bool startupTelemetry = true;
 
 void loop() {
-    // 1. Update Modbus data (gets filtered readings from slave)
-    updateModbusData();
-    
-    // 2. Update global frequency variable if Modbus data is valid
-    if (isModbusDataValid()) {
-        freqHz = (float)getModbusFrequency();  // Update global freqHz
+  // 1. Update Modbus data (gets filtered readings from slave)
+  updateModbusData();
+
+
+  // 2. Update global frequency variable if Modbus data is valid
+  if (isModbusDataValid()) {
+    freqHz = (float)getModbusFrequency();  // Update global freqHz
+  }
+
+  unsigned long currentTime = millis();
+
+  if (currentTime - lastTelemetryTime >= deviceSettings.telemetryInterval * 1000 || startupTelemetry) {
+    lastTelemetryTime = currentTime;
+
+    // Read network mode live
+    preferences.begin("netcfg", true);
+    int netMode = preferences.getInt("netmode", 0);  // 0 = DHCP, 1 = Static
+    preferences.end();
+
+    // Only send telemetry if DHCP mode and Wi-Fi connected
+    if (netMode == 0 && WiFi.status() == WL_CONNECTED) {
+      Serial.println("----------------Sending telemetry to server-----------------");
+      telemetryLoop();
+    } else if (netMode == 0 && WiFi.status() != WL_CONNECTED) {
+      Serial.println("----------------Telemetry skipped (DHCP, Wi-Fi disconnected)-----------------");
+    } else {
+      Serial.println("----------------Telemetry skipped (Static IP mode)-----------------");
     }
-    
-    unsigned long currentTime = millis();
 
-    if (currentTime - lastTelemetryTime >= deviceSettings.telemetryInterval * 1000 || startupTelemetry) {
-        lastTelemetryTime = currentTime;
+    startupTelemetry = false;
+  }
 
-        // Read network mode live
-        preferences.begin("netcfg", true);
-        int netMode = preferences.getInt("netmode", 0);   // 0 = DHCP, 1 = Static
-        preferences.end();
-
-        // Only send telemetry if DHCP mode and Wi-Fi connected
-        if (netMode == 0 && WiFi.status() == WL_CONNECTED) {
-            Serial.println("----------------Sending telemetry to server-----------------");
-            telemetryLoop();
-        } else if (netMode == 0 && WiFi.status() != WL_CONNECTED) {
-            Serial.println("----------------Telemetry skipped (DHCP, Wi-Fi disconnected)-----------------");
-        } else {
-            Serial.println("----------------Telemetry skipped (Static IP mode)-----------------");
-        }
-
-        startupTelemetry = false;
-    }
-    
-    delay(100);
-    esp_task_wdt_reset();
+  delay(100);
+  esp_task_wdt_reset();
 }
 
 

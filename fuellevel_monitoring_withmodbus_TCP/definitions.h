@@ -130,7 +130,7 @@ String filteredPayload = "{}";
 #define DEFAULT_SSID        "Blink Electrics"
 #define DEFAULT_PASSWORD    "blink2023?"
 
-#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 74) //LIMURU 1
+#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 75) //LIMURU 1
 //#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 75) //LIMURU 2
 #define DEFAULT_GATEWAY     IPAddress(192, 168, 1, 1)
 #define DEFAULT_SUBNET      IPAddress(255, 255, 255, 0)
@@ -416,3 +416,12 @@ uint32_t getModbusDistance();
 uint32_t getModbusFrequency();
 bool isModbusDataValid();
 bool isModbusConnected();
+
+bool isModbusTimedOut();
+bool shouldDisplayModbusError();
+String getLastModbusError();
+extern bool modbusCriticalError;
+extern unsigned long modbusErrorStartTime;
+
+// From lcd.ino
+void updateDisplay();
