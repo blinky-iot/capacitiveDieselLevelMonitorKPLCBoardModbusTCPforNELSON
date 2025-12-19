@@ -12,11 +12,11 @@ void valveState(int percentageFill)
   }
 
   // Control logic with stability check
-  if (percentageFill <= 70)
+  if (percentageFill <= 50)
   {
     if ((millis() - levelStability) >= levelStabilityTime)
     {
-      Serial.printf("📉 Fill ≤ 70%% → Requesting valve OPEN (stable %lu ms)\n", millis() - levelStability);
+      Serial.printf("📉 Fill ≤ 50%% → Requesting valve OPEN (stable %lu ms)\n", millis() - levelStability);
       valveOpen = true;
     }
     else
@@ -74,7 +74,7 @@ void controlValve(bool stateOfValve)
 void initValveControl()
 {
   pinMode(valvePin, OUTPUT);
-  digitalWrite(valvePin, LOW); // ensure valve starts CLOSED
+  digitalWrite(valvePin, HIGH); // ensure valve starts CLOSED
   delay(2000);
   //   digitalWrite(valvePin, HIGH);  // ensure valve starts CLOSED
   // delay(2000);
