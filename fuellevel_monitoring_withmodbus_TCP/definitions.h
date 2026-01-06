@@ -1,6 +1,6 @@
 #include <ModbusMaster.h>
 #include <esp_task_wdt.h>
-//#include <ESPSoftwareSerial.h>
+#include <SoftwareSerial.h>
 #include <WiFi.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -13,7 +13,7 @@
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
-#include <TinyGPSPlus.h>
+//#include <TinyGPSPlus.h>
 #include "driver/pcnt.h"
 // #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
@@ -27,6 +27,14 @@
 #include <Preferences.h>
 Preferences preferences;
 
+
+// In definitions.h, add:
+#include <freertos/semphr.h>
+
+// Add this with other global variables:
+SemaphoreHandle_t telemetryMutex; 
+
+
 //#define USE_DHCP
 #define USE_STATIC_IP
 
@@ -37,28 +45,32 @@ Preferences preferences;
 #define powWaterBoard
 
 /* GPS pins & power */
-const gpio_num_t PIN_GPS_RX = GPIO_NUM_37;
-const gpio_num_t PIN_GPS_TX = GPIO_NUM_39;
-const gpio_num_t PIN_GPS_PWR = GPIO_NUM_4;
+// const gpio_num_t PIN_GPS_RX = GPIO_NUM_37;
+// const gpio_num_t PIN_GPS_TX = GPIO_NUM_39;
+// const gpio_num_t PIN_GPS_PWR = GPIO_NUM_4;
+
+// Modbus Software Serial pins
+#define MODBUS_SOFTWARE_RX 26  // RX pin for SoftwareSerial Modbus
+#define MODBUS_SOFTWARE_TX 25  // TX pin for SoftwareSerial Modbus
 
 // Internal state variables
 
 unsigned long lastSent = 0;
 static bool modemInitialized = false;
 
-// State tracking
-unsigned long lastGpsSessionTime = 0;
-unsigned long gpsStartTime = 0;
-unsigned long lastGpsDebugTime = 0;
-bool gpsFixLogged = false;
+// // State tracking
+// unsigned long lastGpsSessionTime = 0;
+// unsigned long gpsStartTime = 0;
+// unsigned long lastGpsDebugTime = 0;
+// bool gpsFixLogged = false;
 
-HardwareSerial gpsSerial(3);
-TinyGPSPlus gps;
-struct GpsFix {
-  uint64_t timestamp;
-  double lat;
-  double lon;
-};
+// HardwareSerial gpsSerial(3);
+// TinyGPSPlus gps;
+// struct GpsFix {
+//   uint64_t timestamp;
+//   double lat;
+//   double lon;
+// };
 
 const char MAIN_FILE[] = "/telemetry.csv";
 const char TMP_FILE[] = "/telemetry.tmp";
@@ -130,8 +142,8 @@ String filteredPayload = "{}";
 #define DEFAULT_SSID        "Blink Electrics"
 #define DEFAULT_PASSWORD    "blink2023?"
 
-#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 75) //LIMURU 1
-//#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 75) //LIMURU 2
+//#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 74) //LIMURU 1
+#define DEFAULT_LOCAL_IP    IPAddress(192, 168, 1, 75) //LIMURU 2
 #define DEFAULT_GATEWAY     IPAddress(192, 168, 1, 1)
 #define DEFAULT_SUBNET      IPAddress(255, 255, 255, 0)
 
@@ -145,7 +157,7 @@ double height_mm;
 //float volume_liters;
 // --- Global Struct for Config
 struct DeviceSettings {
-  char TOKEN[64] = "nelsonYb5LaYMNChr6hf";  //or 2nelsonYb5LaYMNChr6hf
+  char TOKEN[64] = "nelsonYb5LaYMNChr6hf";  //or 2nelsonYb5LaYMNChr6hf    nelsonYb5LaYMNChr6hf
   char SERVER[64] = "telemetry.blinkelectrics.co.ke";
   int port = 1883;
   int telemetryInterval = 60;
@@ -184,7 +196,7 @@ String tankAttributes = "radius,height,length,width,tankType";
 String sensorAttributes = "emptyHz,emptyDistance,midHz,midDistance,fullHz,fullDistance,sensorDisconnectedHz,sensorType,ultrasonicOffset";
 
 
-#define MQTT_MAX_PACKET_SIZE 512  // or 256
+#define MQTT_MAX_PACKET_SIZE 2048  // or 256
 
 
 #define MODEM_RX 16
@@ -257,12 +269,12 @@ static bool backlightState = true;
 extern bool flushing;  // Used to indicate if SD write is in progress
 bool sdReady = false;
 // Add GPS file path
-const char GPS_FILE[] = "/gps.csv";
+//const char GPS_FILE[] = "/gps.csv";
 
 // Logging function prototypes
 uint64_t localMsToUtcMs(uint64_t ms);
 void logToSD(float volume_liters, float battery_voltage);
-void logGpsToSD(double lat, double lon);
+//void logGpsToSD(double lat, double lon);
 
 
 

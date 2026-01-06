@@ -2,12 +2,13 @@
 
 // Modbus RTU Configuration
 ModbusRTU mbRTU;
-HardwareSerial modbusSerial(2);  // Use Serial2 for Modbus communication
+//HardwareSerial modbusSerial(2);  // Use Serial2 for Modbus communication
+SoftwareSerial modbusSerial(MODBUS_SOFTWARE_RX, MODBUS_SOFTWARE_TX);  // NEW - SoftwareSerial on pins 25,26
 
 // Slave configuration
 #define MODBUS_SLAVE_ID 1
 #define MODBUS_POLL_INTERVAL 500  // Poll every 500ms
-#define MODBUS_TIMEOUT_MS 10000   // 10 seconds timeout
+#define MODBUS_TIMEOUT_MS 30000   // 10 seconds timeout
 #define ERROR_DISPLAY_DURATION 30000  // Show error for 30 seconds
 
 // Register addresses (match with slave)
@@ -50,27 +51,95 @@ String getSimpleModbusError(uint8_t event) {
 }
 
 // Callback function for Modbus response
+// bool cbModbusSlave(Modbus::ResultCode event, uint16_t transactionId, void* data) {
+//     uint8_t errorCode = (uint8_t)event;
+    
+//     if (errorCode != 0x00) {  // Not success
+//         lastModbusError = getSimpleModbusError(errorCode);
+//         modbusRetryCount++;
+//         modbusCriticalError = true;
+//         modbusErrorStartTime = millis();
+//         modbusDataValid = false;
+        
+//         Serial.print("🚨 MODBUS ERROR: ");
+//         Serial.print(lastModbusError);
+//         Serial.print(" (Code: 0x");
+//         Serial.print(errorCode, HEX);
+//         Serial.print(", Retry: ");
+//         Serial.print(modbusRetryCount);
+//         Serial.println(")");
+        
+//         if (modbusRetryCount >= MAX_MODBUS_RETRIES) {
+//             modbusSlaveAvailable = false;
+//             Serial.println("🔴 Modbus Slave marked as unavailable");
+//         }
+//         return true;
+//     }
+    
+//     // Success
+//     lastModbusSuccess = millis();
+//     lastModbusError = "";
+//     modbusRetryCount = 0;
+//     modbusSlaveAvailable = true;
+    
+//     if (modbusCriticalError) {
+//         modbusCriticalError = false;
+//         Serial.println("✅ Modbus recovered from error");
+//     }
+    
+//     // Process the data
+//     modbusTemperature = sensorVals[REG_TEMPERATURE] / 10.0f;
+//     modbusDistance = sensorVals[REG_DISTANCE];
+//     modbusFrequency = ((uint32_t)sensorVals[REG_FREQUENCY_HI] << 16) | sensorVals[REG_FREQUENCY_LO];
+//     modbusDataValid = true;
+    
+//     // Debug output (less frequent)
+//     static unsigned long lastDebug = 0;
+//     if (millis() - lastDebug > 5000) {
+//         lastDebug = millis();
+//         Serial.print("[Modbus] ");
+//         Serial.print("Temp: ");
+//         Serial.print(modbusTemperature, 1);
+//         Serial.print("°C | Dist: ");
+//         Serial.print(modbusDistance);
+//         Serial.print(" mm | Freq: ");
+//         Serial.print(modbusFrequency);
+//         Serial.println(" Hz");
+//     }
+    
+//     return true;
+// }
+// In ModbusRtuMaster.ino, increase timeout
+//#define MODBUS_TIMEOUT_MS 30000   // 30 seconds timeout (was 10 seconds)
+
+// Update the callback to handle timeouts better
 bool cbModbusSlave(Modbus::ResultCode event, uint16_t transactionId, void* data) {
     uint8_t errorCode = (uint8_t)event;
     
     if (errorCode != 0x00) {  // Not success
         lastModbusError = getSimpleModbusError(errorCode);
-        modbusRetryCount++;
-        modbusCriticalError = true;
-        modbusErrorStartTime = millis();
-        modbusDataValid = false;
         
-        Serial.print("🚨 MODBUS ERROR: ");
-        Serial.print(lastModbusError);
-        Serial.print(" (Code: 0x");
-        Serial.print(errorCode, HEX);
-        Serial.print(", Retry: ");
-        Serial.print(modbusRetryCount);
-        Serial.println(")");
-        
-        if (modbusRetryCount >= MAX_MODBUS_RETRIES) {
-            modbusSlaveAvailable = false;
-            Serial.println("🔴 Modbus Slave marked as unavailable");
+        // Don't mark as critical immediately for timeout
+        if (errorCode == 0xE0 || errorCode == 0xFF) { // Timeout
+            modbusRetryCount++;
+            Serial.printf("⚠️ Modbus timeout (Retry %d/%d)\n", 
+                          modbusRetryCount, MAX_MODBUS_RETRIES);
+            
+            if (modbusRetryCount >= MAX_MODBUS_RETRIES) {
+                modbusSlaveAvailable = false;
+                modbusCriticalError = true;
+                modbusErrorStartTime = millis();
+                modbusDataValid = false;
+                Serial.println("🔴 Modbus marked as unavailable");
+            }
+        } else {
+            // Other errors are critical immediately
+            modbusCriticalError = true;
+            modbusErrorStartTime = millis();
+            modbusDataValid = false;
+            modbusRetryCount = 0;
+            Serial.print("🚨 MODBUS ERROR: ");
+            Serial.println(lastModbusError);
         }
         return true;
     }
@@ -86,15 +155,21 @@ bool cbModbusSlave(Modbus::ResultCode event, uint16_t transactionId, void* data)
         Serial.println("✅ Modbus recovered from error");
     }
     
-    // Process the data
+    // Process data
     modbusTemperature = sensorVals[REG_TEMPERATURE] / 10.0f;
+    
+    // Validate temperature
+    if (modbusTemperature < -50 || modbusTemperature > 150) {
+        Serial.printf("⚠️ Suspect temperature: %.1f°C\n", modbusTemperature);
+    }
+    
     modbusDistance = sensorVals[REG_DISTANCE];
     modbusFrequency = ((uint32_t)sensorVals[REG_FREQUENCY_HI] << 16) | sensorVals[REG_FREQUENCY_LO];
     modbusDataValid = true;
     
-    // Debug output (less frequent)
+    // Less frequent debug output
     static unsigned long lastDebug = 0;
-    if (millis() - lastDebug > 5000) {
+    if (millis() - lastDebug > 10000) {
         lastDebug = millis();
         Serial.print("[Modbus] ");
         Serial.print("Temp: ");
@@ -108,7 +183,6 @@ bool cbModbusSlave(Modbus::ResultCode event, uint16_t transactionId, void* data)
     
     return true;
 }
-
 // Check if Modbus has timed out
 bool isModbusTimedOut() {
     if (lastModbusSuccess > 0) {
@@ -171,7 +245,8 @@ bool shouldDisplayModbusError() {
 // Initialize Modbus RTU
 void setupModbusRTU() {
     // Initialize Serial2 for Modbus communication
-    modbusSerial.begin(9600, SERIAL_8N1, 17, 16); // RX=17, TX=16
+    //modbusSerial.begin(9600, SERIAL_8N1, 17, 16); // RX=17, TX=16
+     modbusSerial.begin(9600);  // Simple begin for SoftwareSerial
     
     // Initialize Modbus RTU
     mbRTU.begin(&modbusSerial);

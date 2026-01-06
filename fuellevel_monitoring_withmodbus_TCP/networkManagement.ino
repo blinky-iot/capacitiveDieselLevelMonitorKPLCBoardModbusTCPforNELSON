@@ -189,67 +189,6 @@ bool ensureMQTT() {
 }
 
 /*
-// 1️⃣ First WiFi connection (DHCP) → ensures MQTT works
-bool connectWiFiDHCP() {
-  //WiFi.begin(ssid, password);
-  WiFi.begin(DEFAULT_SSID, DEFAULT_PASSWORD);
-  networkConnected = false;
-  Serial.print("Connecting to WiFi");
-
-  unsigned long startAttemptTime = millis();
-  const unsigned long timeout = 30000;
-
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-    if (millis() - startAttemptTime > timeout) {
-      Serial.println("\n❌ WiFi connection timed out");
-      return false;
-    }
-  }
-
-  networkConnected = true;
-  Serial.println("\n✅ WiFi connected (DHCP)");
-  Serial.print("📡 IP address: ");
-  Serial.println(WiFi.localIP());
-  return true;
-}
-
-// 2️⃣ Second WiFi connection (Static + Modbus)
-bool connectWiFiStatic() {
-  if (!WiFi.config(DEFAULT_LOCAL_IP, DEFAULT_GATEWAY, DEFAULT_SUBNET)) {
-    Serial.println("⚠️ Failed to configure static IP");
-  }
-
-  WiFi.begin(DEFAULT_SSID, DEFAULT_PASSWORD);
-  Serial.print("Connecting to WiFi (Static)");
-
-  unsigned long startAttemptTime = millis();
-  const unsigned long timeout = 30000;
-
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-    if (millis() - startAttemptTime > timeout) {
-      Serial.println("\n❌ WiFi connection timed out");
-      return false;
-    }
-  }
-
-  Serial.println("\n✅ WiFi connected (Static)");
-  Serial.print("📡 IP address: ");
-  Serial.println(WiFi.localIP());
-
-  // Start Modbus TCP server
-  mb.server();
-  for (int i = 0; i < REG_COUNT; i++) {
-    mb.addHreg(REG_BASE + i);
-    mb.Hreg(REG_BASE + i, 0);
-  }
-
-  return true;
-}
-*/
 // 1️⃣ WiFi (DHCP + MQTT)
 bool connectWiFiDHCP() {
   Preferences preferences;
@@ -282,7 +221,7 @@ bool connectWiFiDHCP() {
   Serial.println(WiFi.localIP());
   return true;
 }
-
+*/
 // 2️⃣ WiFi (Static + Modbus, no MQTT)
 bool connectWiFiStatic() {
   Preferences preferences;
@@ -346,11 +285,68 @@ bool connectWiFiStatic() {
 }
 
 
+// Add to networkManagement.ino:
 
+void connectWiFiDHCPTask(void* parameter) {
+  Serial.println("🔗 Starting DHCP WiFi connection in background...");
+  
+  while (!connectWiFiDHCP()) {
+    Serial.println("🔄 Retrying DHCP WiFi connection...");
+    delay(10000); // Retry every 10 seconds
+  }
+  
+  // Once connected, setup MQTT
+  if (mqttConnect()) {
+    Serial.println("✅ Attributes sync done");
+  }
+  
+  vTaskDelete(NULL); // Delete this task when done
+}
 
+void connectWiFiStaticTask(void* parameter) {
+  Serial.println("🔗 Starting Static WiFi connection in background...");
+  
+  while (!connectWiFiStatic()) {
+    Serial.println("🔄 Retrying Static WiFi connection...");
+    delay(10000); // Retry every 10 seconds
+  }
+  
+  Serial.println("🚫 MQTT skipped (Static IP mode)");
+  vTaskDelete(NULL); // Delete this task when done
+}
 
+// In networkManagement.ino, update connectWiFiDHCP:
 
+bool connectWiFiDHCP() {
+  Preferences preferences;
+  preferences.begin("netcfg", true);
 
+  String ssid     = preferences.getString("ssid", DEFAULT_SSID);
+  String password = preferences.getString("pass", DEFAULT_PASSWORD);
+
+  preferences.end();
+
+  WiFi.begin(ssid.c_str(), password.c_str());
+  
+  Serial.printf("Connecting to WiFi (DHCP) SSID: %s\n", ssid.c_str());
+
+  unsigned long startAttemptTime = millis();
+  const unsigned long timeout = 15000; // Reduced timeout from 30s to 15s
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+    if (millis() - startAttemptTime > timeout) {
+      Serial.println("\n❌ WiFi connection attempt timed out");
+      return false; // Return false but don't block forever
+    }
+  }
+
+  Serial.println("\n✅ WiFi connected (DHCP)");
+  Serial.print("📡 IP address: ");
+  Serial.println(WiFi.localIP());
+  return true;
+}
 
 
 String interpretMqttState(int state) {
@@ -499,7 +495,7 @@ bool mqttConnect() {
   mqttConnected = false;
   mqttClient.setServer(deviceSettings.SERVER, deviceSettings.port);
   mqttClient.setCallback(callback);
-
+ mqttClient.setBufferSize(2048);
   while (!mqttClient.connected()) {
     Serial.print("🔌 Connecting to MQTT broker at ");
     Serial.print(deviceSettings.SERVER);
@@ -817,40 +813,168 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 
+// bool publishTelemetry(const String& jsonPayload) {
+//   if (!mqttClient.connected()) {
+//     SerialMon.println("❌ MQTT not connected. Telemetry not sent.");
+//     return false;
+//   }
+
+//   SerialMon.println("📤 Attempting to publish telemetry:");
+//   SerialMon.println("Length: " + String(jsonPayload.length()));
+
+//   if (jsonPayload.length() == 0) {
+//     SerialMon.println("❌ Payload is EMPTY. Nothing to send.");
+//     return false;
+//   }
+
+//   // Try parsing to ensure it's valid JSON (debug only)
+//   StaticJsonDocument<512> testDoc;
+//   DeserializationError err = deserializeJson(testDoc, jsonPayload);
+//   if (err) {
+//     SerialMon.print("❌ Payload is not valid JSON: ");
+//     SerialMon.println(err.c_str());
+//   } else {
+//     SerialMon.println("✅ Payload is valid JSON.");
+//   }
+
+//   bool success = mqttClient.publish("v1/devices/me/telemetry", jsonPayload.c_str());
+
+//   if (success) {
+//     SerialMon.println("✅ Telemetry published successfully.");
+//   } else {
+//     SerialMon.println("❌ Failed to publish telemetry.");
+//   }
+
+//   return success;
+// }
+/*
 bool publishTelemetry(const String& jsonPayload) {
   if (!mqttClient.connected()) {
     SerialMon.println("❌ MQTT not connected. Telemetry not sent.");
     return false;
   }
 
-  SerialMon.println("📤 Attempting to publish telemetry:");
-  SerialMon.println("Length: " + String(jsonPayload.length()));
+  SerialMon.println("\n=== DEBUG publishTelemetry() ===");
+  SerialMon.print("📤 Attempting to publish. Topic: v1/devices/me/telemetry");
+  SerialMon.print(" | Payload Length: ");
+  SerialMon.println(jsonPayload.length());
 
-  if (jsonPayload.length() == 0) {
-    SerialMon.println("❌ Payload is EMPTY. Nothing to send.");
-    return false;
-  }
+  // Print the first 200 chars of payload to see it
+  SerialMon.print("📄 Payload Preview: ");
+  SerialMon.println(jsonPayload.substring(0, 200));
 
-  // Try parsing to ensure it's valid JSON (debug only)
-  StaticJsonDocument<512> testDoc;
-  DeserializationError err = deserializeJson(testDoc, jsonPayload);
-  if (err) {
-    SerialMon.print("❌ Payload is not valid JSON: ");
-    SerialMon.println(err.c_str());
-  } else {
-    SerialMon.println("✅ Payload is valid JSON.");
+  // Simple validation - check if payload starts and ends correctly
+  if (jsonPayload.length() > 0) {
+    if (jsonPayload.charAt(0) != '{') {
+      SerialMon.println("❌ Payload doesn't start with '{'");
+    }
+    if (jsonPayload.charAt(jsonPayload.length() - 1) != '}') {
+      SerialMon.println("❌ Payload doesn't end with '}'");
+    }
   }
 
   bool success = mqttClient.publish("v1/devices/me/telemetry", jsonPayload.c_str());
 
   if (success) {
-    SerialMon.println("✅ Telemetry published successfully.");
+    SerialMon.println("✅ publish() returned: SUCCESS");
   } else {
-    SerialMon.println("❌ Failed to publish telemetry.");
+    SerialMon.println("❌ publish() returned: FAILURE");
+    // Check the MQTT client state for more info
+    int mqttState = mqttClient.state();
+    SerialMon.print("🔍 MQTT Client State Code: ");
+    SerialMon.println(mqttState);
   }
+  SerialMon.println("=== END DEBUG ===\n");
 
   return success;
 }
+*/
+
+
+bool publishTelemetry(const String& jsonPayload) {
+  // If specific payload provided, use it directly (for SD telemetry)
+  if (!jsonPayload.isEmpty()) {
+    if (!mqttClient.connected()) {
+      SerialMon.println("❌ MQTT not connected. Telemetry not sent.");
+      return false;
+    }
+
+    SerialMon.println("📤 Publishing provided payload (SD/GSM telemetry)");
+    SerialMon.println("Length: " + String(jsonPayload.length()));
+
+    // Process MQTT to clear any pending operations
+    mqttClient.loop();
+    delay(10);
+    
+    bool success = mqttClient.publish("v1/devices/me/telemetry", jsonPayload.c_str());
+    
+    if (success) {
+      SerialMon.println("✅ Provided telemetry published successfully.");
+    } else {
+      SerialMon.println("❌ Failed to publish provided telemetry.");
+    }
+    
+    return success;
+  }
+  
+  // Otherwise, send filteredPayload with mutex protection
+  if (!mqttClient.connected()) {
+    SerialMon.println("❌ MQTT not connected. Telemetry not sent.");
+    return false;
+  }
+
+  SerialMon.println("\n=== MUTEX: Attempting to publish filtered telemetry ===");
+  
+  // TAKE mutex to read filteredPayload safely
+  if (xSemaphoreTake(telemetryMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      // Critical section: Read the current telemetry
+      String payloadToSend = filteredPayload;  // Make a LOCAL copy
+      
+      // Release mutex IMMEDIATELY after copying
+      xSemaphoreGive(telemetryMutex);
+      
+      SerialMon.println("✅ Mutex acquired & released");
+      SerialMon.println("Payload length: " + String(payloadToSend.length()));
+      
+      if (payloadToSend.length() == 0 || payloadToSend == "{}") {
+          SerialMon.println("⚠️ Payload is empty. Nothing to send.");
+          return false;
+      }
+      
+      // Validate JSON
+      StaticJsonDocument<512> testDoc;
+      DeserializationError err = deserializeJson(testDoc, payloadToSend);
+      if (err) {
+          SerialMon.print("❌ Payload is not valid JSON: ");
+          SerialMon.println(err.c_str());
+          return false;
+      }
+      
+      // Process MQTT to clear any pending operations
+      mqttClient.loop();
+      delay(10);
+      
+      // Send the COPIED payload
+      bool success = mqttClient.publish("v1/devices/me/telemetry", payloadToSend.c_str());
+      
+      if (success) {
+          SerialMon.println("✅ Filtered telemetry published successfully.");
+      } else {
+          SerialMon.println("❌ Failed to publish filtered telemetry.");
+          SerialMon.print("MQTT state: ");
+          SerialMon.println(mqttClient.state());
+      }
+      
+      SerialMon.println("=== END MUTEX PUBLISH ===\n");
+      return success;
+      
+  } else {
+      SerialMon.println("❌ Couldn't acquire telemetry mutex (timeout)");
+      SerialMon.println("⚠️ SensorReading task is updating telemetry - try again later");
+      return false;
+  }
+}
+
 
 bool sendGsmTelemetry() {
   if (!mqttClient.connected()) {
@@ -967,30 +1091,64 @@ bool sendGsmTelemetry() {
 
   ------------------------------------------------------------------------------
 */
+// void telemetryLoop() {
+//   bool netwokConnected = false;
+
+// #ifdef USE_WIFI
+//   netwokConnected = maintainWiFiConnection();
+// #endif
+
+// #ifdef USE_GSM
+//   netwokConnected = manageGSMConnectivity();
+// #endif
+
+//   if (netwokConnected) {
+//     publishTelemetry(filteredPayload);
+//     sendTelemetryFromSD();
+//     if (!gsmTelemetrySent && mqttClient.connected()) {
+//       if (sendGsmTelemetry()) {
+//         gsmTelemetrySent = true;
+//       }
+//     }
+//     mqttClient.loop();
+//     delay(2000);
+//   }
+//   powerDownModem();
+// }
 void telemetryLoop() {
-  bool netwokConnected = false;
+  bool networkConnected = false;
 
 #ifdef USE_WIFI
-  netwokConnected = maintainWiFiConnection();
+  networkConnected = maintainWiFiConnection();
 #endif
 
 #ifdef USE_GSM
-  netwokConnected = manageGSMConnectivity();
+  networkConnected = manageGSMConnectivity();
 #endif
-  if (netwokConnected) {
-    publishTelemetry(filteredPayload);
+
+  if (networkConnected) {
+    // Send filtered telemetry (uses mutex internally)
+    publishTelemetry("");  // Empty string = use filteredPayload
+    
+    // Send SD telemetry (passes its own payload)
     sendTelemetryFromSD();
+    
+    // Send GSM telemetry once
     if (!gsmTelemetrySent && mqttClient.connected()) {
       if (sendGsmTelemetry()) {
         gsmTelemetrySent = true;
       }
     }
+    
+    // Process MQTT
     mqttClient.loop();
     delay(2000);
   }
+  
+#ifdef USE_GSM
   powerDownModem();
+#endif
 }
-
 bool maintainWiFiConnection() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("⚠️ WiFi disconnected. Reconnecting...");

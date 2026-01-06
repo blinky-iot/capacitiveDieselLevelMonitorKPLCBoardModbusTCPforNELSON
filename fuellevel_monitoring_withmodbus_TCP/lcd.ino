@@ -190,7 +190,7 @@ void displayModbusError() {
 
 // Function to update network status (called during normal display)
 void updateNetworkStatus() {
-  // Update network status on line 2
+    // Update network status on line 2
   lcd.setCursor(4, 2);
   if (WiFi.status() == WL_CONNECTED) {
     lcd.print("Connected   ");
@@ -285,74 +285,177 @@ void displayNormalStatus() {
   }
 }
 
-// Main display update function
+
+// // Main display update function
+// void updateDisplay() {
+//   // Check if Modbus error should take priority
+//   if (shouldDisplayModbusError()) {
+//     displayOverriddenByError = true;
+//     displayModbusError();
+//   } else if (displayOverriddenByError) {
+//     // Error was just cleared - transition back to normal display
+//     displayOverriddenByError = false;
+//     lcd.clear();                         // Clear error screen
+//     StatusDisplay();                     // Restore normal display structure
+//     lastNormalDisplayUpdate = millis();  // Force immediate update
+//     displayNormalStatus();               // Show current data
+//   } else {
+//     // Normal display mode - no errors
+//     displayOverriddenByError = false;
+//     displayNormalStatus();
+//   }
+// }
+
+
+// In lcd.ino, ensure display updates even without network:
+
 void updateDisplay() {
-  // Check if Modbus error should take priority
-  if (shouldDisplayModbusError()) {
-    displayOverriddenByError = true;
-    displayModbusError();
-  } else if (displayOverriddenByError) {
-    // Error was just cleared - transition back to normal display
-    displayOverriddenByError = false;
-    lcd.clear();                         // Clear error screen
-    StatusDisplay();                     // Restore normal display structure
-    lastNormalDisplayUpdate = millis();  // Force immediate update
-    displayNormalStatus();               // Show current data
-  } else {
-    // Normal display mode - no errors
-    displayOverriddenByError = false;
-    displayNormalStatus();
+  static unsigned long lastUpdate = 0;
+  
+  // Always update at regular interval, regardless of network
+  if (millis() - lastUpdate >= 2000) { // Every 2 seconds
+    lastUpdate = millis();
+    
+    // Clear and update display
+    StatusDisplay();
+    
+    // Show tank data if available
+    if (isModbusConnected() && isModbusDataValid()) {
+      float volume_liters = getLevelLiters();
+      int volumeInt = (int)round(volume_liters);
+      int heightInt = (int)round(height_mm);
+      DistanceDisplay(heightInt, volumeInt);
+    } else {
+      // Show waiting/error state
+      lcd.setCursor(4, 0);
+      lcd.print("--- M");
+      lcd.setCursor(4, 1);
+      lcd.print("--- L");
+    }
+    
+    // Update network status (will show disconnected if no WiFi)
+    updateNetworkStatus();
+    
+    // Update valve status
+    lcd.setCursor(15, 0);
+    lcd.print(valveOpen ? "ON " : "OFF");
   }
 }
 
-// Updated wifiConnection task
-void wifiConnection(void* parameters) {
-  // Initial display setup
-  StatusDisplay();
 
+
+
+
+
+
+
+
+
+// Updated wifiConnection task
+// void wifiConnection(void* parameters) {
+//   // Initial display setup
+//   StatusDisplay();
+
+//   while (1) {
+//     // Always service Modbus TCP
+//     mb.task();
+
+//     // Update display (handles both normal and error modes)
+//     updateDisplay();
+
+//     // Update Modbus registers only if no error and Modbus is connected
+//     if (!shouldDisplayModbusError() && isModbusConnected() && isModbusDataValid()) {
+//       static unsigned long lastModbusUpdate = 0;
+//       if (millis() - lastModbusUpdate > 5000) {
+//         lastModbusUpdate = millis();
+
+//         // Get tank readings
+//         float volume_liters = getLevelLiters();
+//         int volumeInt = (int)round(volume_liters);
+//         int heightInt = (int)round(height_mm);
+
+//         // Calculate percentage fill
+//         int fillPercent = 0;
+//         if (deviceSettings.tankHeight > 0) {
+//           fillPercent = (int)round(((float)heightInt / deviceSettings.tankHeight) * 100.0);
+//           fillPercent = constrain(fillPercent, 0, 100);
+//         }
+
+//         // Update Modbus TCP registers
+//         mb.Hreg(REG_BASE + 0, (uint16_t)volumeInt);    // Volume
+//         mb.Hreg(REG_BASE + 1, (uint16_t)heightInt);    // Height
+//         mb.Hreg(REG_BASE + 2, (uint16_t)fillPercent);  // Percentage
+
+//         // Debug output (optional)
+//         static unsigned long lastDebug = 0;
+//         if (millis() - lastDebug > 10000) {
+//           lastDebug = millis();
+//           Serial.printf("📊 Modbus TCP: V=%u L | H=%u mm | F=%u%%\n",
+//                         volumeInt, heightInt, fillPercent);
+//         }
+//       }
+//     }
+
+//     vTaskDelay(100 / portTICK_PERIOD_MS);
+//   }
+// }
+
+
+// Add watchdog reset in all critical loops:
+
+void wifiConnection(void* parameters) {
+  StatusDisplay();
+  
   while (1) {
+    esp_task_wdt_reset(); // Feed watchdog
+    
     // Always service Modbus TCP
     mb.task();
-
+    
     // Update display (handles both normal and error modes)
     updateDisplay();
-
+    
     // Update Modbus registers only if no error and Modbus is connected
     if (!shouldDisplayModbusError() && isModbusConnected() && isModbusDataValid()) {
       static unsigned long lastModbusUpdate = 0;
       if (millis() - lastModbusUpdate > 5000) {
         lastModbusUpdate = millis();
-
+        
         // Get tank readings
         float volume_liters = getLevelLiters();
         int volumeInt = (int)round(volume_liters);
         int heightInt = (int)round(height_mm);
-
+        
         // Calculate percentage fill
         int fillPercent = 0;
         if (deviceSettings.tankHeight > 0) {
           fillPercent = (int)round(((float)heightInt / deviceSettings.tankHeight) * 100.0);
           fillPercent = constrain(fillPercent, 0, 100);
         }
-
+        
         // Update Modbus TCP registers
         mb.Hreg(REG_BASE + 0, (uint16_t)volumeInt);    // Volume
         mb.Hreg(REG_BASE + 1, (uint16_t)heightInt);    // Height
         mb.Hreg(REG_BASE + 2, (uint16_t)fillPercent);  // Percentage
-
-        // Debug output (optional)
-        static unsigned long lastDebug = 0;
-        if (millis() - lastDebug > 10000) {
-          lastDebug = millis();
-          Serial.printf("📊 Modbus TCP: V=%u L | H=%u mm | F=%u%%\n",
-                        volumeInt, heightInt, fillPercent);
-        }
       }
     }
-
+    
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 MsgStructure Conv(String Message) {
   MsgStructure Conv1;
