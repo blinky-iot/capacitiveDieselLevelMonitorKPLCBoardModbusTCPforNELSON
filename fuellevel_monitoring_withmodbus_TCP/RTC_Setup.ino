@@ -41,30 +41,6 @@ void provisionCLTS() {
   delay(10000);
 }
 
-// void syncRtcOnce() {
-//   DateTime t;
-
-//   if (getValidNetworkTime(t)) {
-//     rtc.adjust(t);
-//     Serial.println("✅ RTC synced via network.");
-//     rtcTimeOk = true;
-//     return;
-//   }
-
-//   provisionCLTS();
-
-//   if (getValidNetworkTime(t)) {
-//     rtc.adjust(t);
-//     Serial.println("✅ RTC synced after CLTS.");
-//     rtcTimeOk = true;
-//     return;
-//   }
-
-//   rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-//   Serial.println("⏳ RTC fallback to compile time.");
-// }
-
-
 void syncRtcOnce() {
   // 1. Show current RTC time before attempting sync
   DateTime now = rtc.now();

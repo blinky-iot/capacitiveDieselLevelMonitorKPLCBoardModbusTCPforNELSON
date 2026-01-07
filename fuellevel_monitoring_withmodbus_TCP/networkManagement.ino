@@ -188,40 +188,6 @@ bool ensureMQTT() {
   return false;
 }
 
-/*
-// 1️⃣ WiFi (DHCP + MQTT)
-bool connectWiFiDHCP() {
-  Preferences preferences;
-  preferences.begin("netcfg", true);
-
-  String ssid     = preferences.getString("ssid", DEFAULT_SSID);
-  String password = preferences.getString("pass", DEFAULT_PASSWORD);
-
-  preferences.end();
-
-  WiFi.begin(ssid.c_str(), password.c_str());
-  networkConnected = false;
-  Serial.printf("Connecting to WiFi (DHCP) SSID: %s\n", ssid.c_str());
-
-  unsigned long startAttemptTime = millis();
-  const unsigned long timeout = 30000;
-
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-    if (millis() - startAttemptTime > timeout) {
-      Serial.println("\n❌ WiFi connection timed out");
-      return false;
-    }
-  }
-
-  networkConnected = true;
-  Serial.println("\n✅ WiFi connected (DHCP)");
-  Serial.print("📡 IP address: ");
-  Serial.println(WiFi.localIP());
-  return true;
-}
-*/
 // 2️⃣ WiFi (Static + Modbus, no MQTT)
 bool connectWiFiStatic() {
   Preferences preferences;
@@ -285,8 +251,6 @@ bool connectWiFiStatic() {
 }
 
 
-// Add to networkManagement.ino:
-
 void connectWiFiDHCPTask(void* parameter) {
   Serial.println("🔗 Starting DHCP WiFi connection in background...");
   
@@ -315,7 +279,6 @@ void connectWiFiStaticTask(void* parameter) {
   vTaskDelete(NULL); // Delete this task when done
 }
 
-// In networkManagement.ino, update connectWiFiDHCP:
 
 bool connectWiFiDHCP() {
   Preferences preferences;
@@ -365,81 +328,6 @@ String interpretMqttState(int state) {
   }
 }
 
-
-
-
-/*
-// --- WiFi Connection with 30s Timeout
-bool connectWiFi() {
-  WiFi.begin(ssid, password);
-  networkConnected = false;
-  Serial.print("Connecting to WiFi");
-
-  unsigned long startAttemptTime = millis();
-  const unsigned long timeout = 30000;  // 30 seconds
-
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-
-    if (millis() - startAttemptTime > timeout) {
-      Serial.println("\n❌ WiFi connection timed out");
-      return false;
-    }
-  }
-
-  networkConnected = true;
-  Serial.println("\n✅ WiFi connected");
-  Serial.print("📡 IP address: ");
-  Serial.println(WiFi.localIP());
-  return true;
-  // // Start Modbus TCP server
-  // mb.server();
-
-  // // Add 10 Holding Registers
-  // for (int i = 0; i < REG_COUNT; i++) {
-  //   mb.addHreg(REG_BASE + i);
-  //   mb.Hreg(REG_BASE + i, i);  // Optional: preset values 0–9
-  // }
-}
-
-bool connectWiFi() {
-  if (!WiFi.config(local_IP, gateway, subnet)) {
-    Serial.println("⚠️ Failed to configure static IP");
-  }
-
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-
-  unsigned long startAttemptTime = millis();
-  const unsigned long timeout = 30000;  // 30 seconds
-
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-
-    if (millis() - startAttemptTime > timeout) {
-      Serial.println("\n❌ WiFi connection timed out");
-      return false;
-    }
-  }
-
-  Serial.println("\n✅ WiFi connected");
-  Serial.print("📡 IP address: ");
-  Serial.println(WiFi.localIP());
-
-  // Start Modbus TCP server
-  mb.server();
-
-  // Add Holding Registers
-  for (int i = 0; i < REG_COUNT; i++) {
-    mb.addHreg(REG_BASE + i);
-    mb.Hreg(REG_BASE + i, 0);  // initialize all to 0
-  }
-
-  return true;
-}
-*/
 
 
 /*

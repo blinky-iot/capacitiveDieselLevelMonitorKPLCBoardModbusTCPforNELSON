@@ -1,7 +1,7 @@
 // Add these at the top of lcd.ino
 bool displayOverriddenByError = false;
 unsigned long lastNormalDisplayUpdate = 0;
-const unsigned long NORMAL_DISPLAY_INTERVAL = 2000;  // Update normal display every 2s
+const unsigned long NORMAL_DISPLAY_INTERVAL = 5000;  // Update normal display every 2s
 unsigned long lastErrorBlink = 0;
 bool errorBlinkState = false;
 
@@ -18,34 +18,7 @@ void Display(String Message1, String Message2) {
   lcd.print(String(Message2));
 }
 
-// Optimized StatusDisplay - doesn't clear entire screen
-// void StatusDisplay() {
-//   // Don't clear entire screen - just update specific areas
 
-//   // --- Line 0: Level and Valve ---
-//   // Level label
-//   lcd.setCursor(0, 0);
-//   lcd.print("Lev:");
-
-//   // Valve status (right side)
-//   lcd.setCursor(12, 0);
-//   lcd.print("V:");
-//   lcd.setCursor(15, 0);
-//   lcd.print(valveOpen ? "ON" : "OFF");
-
-//   // --- Line 1: Volume ---
-//   lcd.setCursor(0, 1);
-//   lcd.print("Vol:");
-
-//   // --- Line 2: Network Status ---
-//   lcd.setCursor(0, 2);
-//   lcd.print("Net:");
-
-//   // --- Line 3: IP Address ---
-//   // IP label
-//   lcd.setCursor(0, 3);
-//   lcd.print("IP:");
-// }
 void StatusDisplay() {
   // First, clear entire line 0 completely
   //clearLCDLine(0);  // This clears all 20 characters on line 0
@@ -67,14 +40,6 @@ void StatusDisplay() {
   lcd.print("V:");
   lcd.setCursor(15, 0);
   lcd.print(valveOpen ? "ON " : "OFF");  // Space at end to clear leftover chars
-
-  // Modbus status indicator (position 17)
-  // lcd.setCursor(17, 0);
-  // if (isModbusConnected()) {
-  //   //lcd.print("✓");
-  // } else {
-  //   lcd.print(" ");
-  // }
 
   // --- Line 1: Volume ---
   lcd.setCursor(0, 1);
@@ -170,17 +135,6 @@ void displayModbusError() {
       lcd.setCursor(0, 2);
       lcd.print("Check wiring & power");
       delay(1000);
-      // Line 3: Time remaining
-      // lcd.setCursor(0, 3);
-      // unsigned long elapsed = millis() - modbusErrorStartTime;
-      // if (elapsed < ERROR_DISPLAY_DURATION) {
-      //   unsigned long remaining = (ERROR_DISPLAY_DURATION - elapsed) / 1000;
-      //   lcd.print("Auto-clear: ");
-      //   lcd.print(remaining);
-      //   lcd.print("s");
-      // } else {
-      //   lcd.print("Clearing soon...");
-      // }
     } else {
       // Blank screen during off phase of blink
       lcd.clear();
@@ -228,8 +182,7 @@ void updateModbusStatusIndicator() {
   lcd.print(" ");  // Clear
 
   if (isModbusConnected()) {
-    // lcd.setCursor(17, 0);
-    // lcd.print("✓");
+
   } else {
     // Blink indicator when Modbus has issues but not critical error
     static unsigned long lastIndicatorBlink = 0;
@@ -286,34 +239,13 @@ void displayNormalStatus() {
 }
 
 
-// // Main display update function
-// void updateDisplay() {
-//   // Check if Modbus error should take priority
-//   if (shouldDisplayModbusError()) {
-//     displayOverriddenByError = true;
-//     displayModbusError();
-//   } else if (displayOverriddenByError) {
-//     // Error was just cleared - transition back to normal display
-//     displayOverriddenByError = false;
-//     lcd.clear();                         // Clear error screen
-//     StatusDisplay();                     // Restore normal display structure
-//     lastNormalDisplayUpdate = millis();  // Force immediate update
-//     displayNormalStatus();               // Show current data
-//   } else {
-//     // Normal display mode - no errors
-//     displayOverriddenByError = false;
-//     displayNormalStatus();
-//   }
-// }
-
-
 // In lcd.ino, ensure display updates even without network:
 
 void updateDisplay() {
   static unsigned long lastUpdate = 0;
   
   // Always update at regular interval, regardless of network
-  if (millis() - lastUpdate >= 2000) { // Every 2 seconds
+  if (millis() - lastUpdate >= 5000) { // Every 2 seconds
     lastUpdate = millis();
     
     // Clear and update display
@@ -342,66 +274,6 @@ void updateDisplay() {
   }
 }
 
-
-
-
-
-
-
-
-
-
-// Updated wifiConnection task
-// void wifiConnection(void* parameters) {
-//   // Initial display setup
-//   StatusDisplay();
-
-//   while (1) {
-//     // Always service Modbus TCP
-//     mb.task();
-
-//     // Update display (handles both normal and error modes)
-//     updateDisplay();
-
-//     // Update Modbus registers only if no error and Modbus is connected
-//     if (!shouldDisplayModbusError() && isModbusConnected() && isModbusDataValid()) {
-//       static unsigned long lastModbusUpdate = 0;
-//       if (millis() - lastModbusUpdate > 5000) {
-//         lastModbusUpdate = millis();
-
-//         // Get tank readings
-//         float volume_liters = getLevelLiters();
-//         int volumeInt = (int)round(volume_liters);
-//         int heightInt = (int)round(height_mm);
-
-//         // Calculate percentage fill
-//         int fillPercent = 0;
-//         if (deviceSettings.tankHeight > 0) {
-//           fillPercent = (int)round(((float)heightInt / deviceSettings.tankHeight) * 100.0);
-//           fillPercent = constrain(fillPercent, 0, 100);
-//         }
-
-//         // Update Modbus TCP registers
-//         mb.Hreg(REG_BASE + 0, (uint16_t)volumeInt);    // Volume
-//         mb.Hreg(REG_BASE + 1, (uint16_t)heightInt);    // Height
-//         mb.Hreg(REG_BASE + 2, (uint16_t)fillPercent);  // Percentage
-
-//         // Debug output (optional)
-//         static unsigned long lastDebug = 0;
-//         if (millis() - lastDebug > 10000) {
-//           lastDebug = millis();
-//           Serial.printf("📊 Modbus TCP: V=%u L | H=%u mm | F=%u%%\n",
-//                         volumeInt, heightInt, fillPercent);
-//         }
-//       }
-//     }
-
-//     vTaskDelay(100 / portTICK_PERIOD_MS);
-//   }
-// }
-
-
-// Add watchdog reset in all critical loops:
 
 void wifiConnection(void* parameters) {
   StatusDisplay();
@@ -443,18 +315,6 @@ void wifiConnection(void* parameters) {
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 MsgStructure Conv(String Message) {
